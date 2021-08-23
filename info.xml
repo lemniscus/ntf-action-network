@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<extension key="ntf-action-network" type="module">
+  <file>ntf_action_network</file>
+  <name>9to5 Action Network Configuration</name>
+  <description>
+    Custom plugin for the OSDI Client extension: provides the logic
+    which maps fields in 9to5's Civi to fields in Action Network.
+  </description>
+  <license>AGPL-3.0</license>
+  <maintainer>
+    <author>Noah Miller, Lemniscus</author>
+    <email>nm@lemnisc.us</email>
+  </maintainer>
+  <urls>
+    <url desc="Main Extension Page">https://github.com/lemniscus/ntf-action-network</url>
+    <url desc="Documentation">https://github.com/lemniscus/ntf-action-network</url>
+    <url desc="Support">https://lemnisc.us</url>
+    <url desc="Licensing">http://www.gnu.org/licenses/agpl-3.0.html</url>
+  </urls>
+  <releaseDate>2021-08-22</releaseDate>
+  <version>1.0</version>
+  <develStage>alpha</develStage>
+  <compatibility>
+    <ver>5.0</ver>
+  </compatibility>
+  <comments>Custom-built for 9to5</comments>
+  <classloader>
+    <psr4 prefix="Civi\" path="Civi"/>
+  </classloader>
+  <civix>
+    <namespace>CRM/NtfActionNetwork</namespace>
+  </civix>
+</extension>
