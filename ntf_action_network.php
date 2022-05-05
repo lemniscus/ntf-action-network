@@ -5,6 +5,24 @@ require_once 'ntf_action_network.civix.php';
 use CRM_NtfActionNetwork_ExtensionUtil as E;
 // phpcs:enable
 
+function ntf_action_network_civicrm_geocoderFormat($geoProvider, &$values, $xml) {
+  if ($geoProvider !== 'Google') {
+    exit;
+  }
+
+  if ('OK' !== (string) $xml->status) {
+    throw new Exception('From Google: ' . $xml->error_message ?? '""');
+  }
+
+  foreach ($xml->result->address_component as $component) {
+    $type = (string) $component->type[0];
+    if ($type === 'postal_code') {
+      $values['zip'] = (string) $component->short_name;
+      return;
+    }
+  }
+}
+
 /**
  * Implements hook_civicrm_config().
  *
