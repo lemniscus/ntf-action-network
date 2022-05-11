@@ -4,63 +4,55 @@ namespace Civi\Osdi\ActionNetwork\Mapper;
 
 use Civi\Osdi\ActionNetwork\Object\Person as RemotePerson;
 use Civi\Osdi\LocalObject\Person\N2F as LocalPerson;
+use Civi\Osdi\RemoteSystemInterface;
 use CRM_NtfActionNetwork_ExtensionUtil as E;
 
 class NineToFive2022May {
+
+  private RemoteSystemInterface $remoteSystem;
+
+  public function __construct(RemoteSystemInterface $remoteSystem) {
+    $this->remoteSystem = $remoteSystem;
+  }
 
   public function mapLocalToRemote(LocalPerson $localPerson,
       RemotePerson $remotePerson = NULL): RemotePerson {
 
     $l = $localPerson->loadOnce();
-    $remotePerson = $remotePerson ?? new RemotePerson();
+    $remotePerson = $remotePerson ?? new RemotePerson($this->remoteSystem);
 
-    $remotePerson->set('given_name', $l->firstName->get());
-    $remotePerson->set('family_name', $l->lastName->get());
+    $remotePerson->givenName->set($l->firstName->get());
+    $remotePerson->familyName->set($l->lastName->get());
     if (!empty($l->individualLanguagesSpoken->get())) {
       $language = implode('&', $l->individualLanguagesSpoken->get());
       $languageMap = ['eng' => 'en', 'eng&spa' => 'en', 'spa&eng' => 'en', 'spa' => 'es'];
-      $remotePerson->set('languages_spoken', [$languageMap[$language] ?? '']);
+      $remotePerson->languageSpoken->set($languageMap[$language] ?? '');
     }
 
     $noEmails = $l->isOptOut->get() || $l->doNotEmail->get();
-    $remotePerson->set('email_addresses', [
-      [
-        'address' => $l->emailEmail->get(),
-        'status' => $noEmails ? 'unsubscribed' : 'subscribed',
-      ],
-    ]);
+    $remotePerson->emailAddress->set($l->emailEmail->get());
+    $remotePerson->emailStatus->set($noEmails ? 'unsubscribed' : 'subscribed');
 
     $phoneNumber = $l->smsPhonePhoneNumeric->get();
     $noSms = $l->isOptOut->get() || $l->doNotSms->get() || empty($phoneNumber);
-    $remotePerson->set('phone_numbers', [
-      [
-        'number' => $phoneNumber ?? '',
-        'status' => $noSms ? 'unsubscribed' : 'subscribed',
-      ],
-    ]);
+    $remotePerson->phoneNumber->set($phoneNumber);
+    $remotePerson->phoneStatus->set($noSms ? 'unsubscribed' : 'subscribed');
 
     if (empty($zip = $l->addressPostalCode->get())) {
       $dummyZip = $this->addZipCode($l);
       $zip = $l->addressPostalCode->get();
     }
     if ($zip) {
-      $remotePerson->set('postal_addresses', [
-        [
-          'address_lines' => [$l->addressStreetAddress->get()],
-          'locality' => $l->addressCity->get(),
-          'region' => $l->addressStateProvinceIdAbbreviation->get(),
-          'postal_code' => $zip,
-          'country' => $l->addressCountryIdName->get(),
-        ],
-      ]);
+      $remotePerson->postalStreet->set($l->addressStreetAddress->get());
+      $remotePerson->postalLocality->set($l->addressCity->get());
+      $remotePerson->postalRegion->set($l->addressStateProvinceIdAbbreviation->get());
+      $remotePerson->postalCode->set($zip);
+      $remotePerson->postalCountry->set($l->addressCountryIdName->get());
     }
-    $remotePerson->set(
-      'custom_fields',
-      array_merge(
-        $remotePerson->get('custom_fields') ?? [],
+    $remotePerson->customFields->set(array_merge(
+        $remotePerson->customFields->get() ?? [],
         ['Dummy ZIP' => $dummyZip ?? 'no']
-      )
-    );
+      ));
     return $remotePerson;
   }
 
@@ -69,58 +61,59 @@ class NineToFive2022May {
 
     $localPerson = $localPerson ?? new LocalPerson();
 
-    $localPerson->firstName->set($remotePerson->get('given_name'));
-    $localPerson->lastName->set($remotePerson->get('family_name'));
+    $localPerson->firstName->set($remotePerson->givenName->get());
+    $localPerson->lastName->set($remotePerson->familyName->get());
     $localPerson->individualLanguagesSpoken->set(
       $this->mapLanguageFromActionNetwork($remotePerson, $localPerson));
 
-    if ($rpEmail = $remotePerson->getEmailAddress() ?? NULL) {
+    if ($rpEmail = $remotePerson->emailAddress->get()) {
       $localPerson->emailEmail->set($rpEmail);
+      if ('unsubscribed' === $remotePerson->emailStatus->get()) {
+        $localPerson->doNotEmail->set(TRUE);
+      }
     }
 
-    $rpPhone = $remotePerson->get('phone_numbers')[0] ?? NULL;
-    if ($rpPhone['number'] ?? FALSE) {
-      if ('subscribed' === $rpPhone['status'] ?? NULL) {
-        $localPerson->smsPhonePhone->set($rpPhone['number']);
+    if ($rpPhoneNumber = $remotePerson->phoneNumber->get()) {
+      if ('subscribed' === $remotePerson->phoneStatus->get()) {
+        $localPerson->smsPhonePhone->set($rpPhoneNumber);
         $localPerson->smsPhoneIsPrimary->set(TRUE);
       }
       else {
         $localPerson->smsPhonePhone->set(NULL);
-        $localPerson->nonSmsMobilePhonePhone->set($rpPhone['number']);
+        $localPerson->nonSmsMobilePhonePhone->set($rpPhoneNumber);
         $localPerson->nonSmsMobilePhoneIsPrimary->set(TRUE);
       }
     }
 
-    if ($rpAddress = $remotePerson->get('postal_addresses')[0] ?? NULL) {
-      [$stateId, $countryId]
-        = $this->getStateAndCountryIdsFromActNetAddress($rpAddress);
-      $dummyZIP = $remotePerson->get('custom_fields')['Dummy ZIP'] ?? '';
-      if ($rpAddress['postal_code'] === $dummyZIP) {
-        $rpAddress['postal_code'] = $rpAddress['locality'] = NULL;
+    if ($zip = $remotePerson->postalCode->get()) {
+      [$stateId, $countryId] = $this->getStateAndCountryIds($remotePerson);
+
+      $zipIsDummy = ($zip === ($remotePerson->customFields->get()['Dummy ZIP'] ?? ''));
+
+      $localPerson->addressStreetAddress->set($remotePerson->postalStreet->get());
+      if (!$zipIsDummy) {
+        $localPerson->addressCity->set($remotePerson->postalLocality->get());
       }
-      $localPerson->addressStreetAddress
-        ->set($rpAddress['address_lines'][0] ?? '');
-      $localPerson->addressCity->set($rpAddress['locality']);
       $localPerson->addressStateProvinceId->set($stateId);
-      $localPerson->addressPostalCode->set($rpAddress['postal_code']);
+      $localPerson->addressPostalCode->set($zipIsDummy ? NULL : $zip);
       $localPerson->addressCountryId->set($countryId);
     }
     return $localPerson;
   }
 
-  private function getStateAndCountryIdsFromActNetAddress(array $actNetAddress): array {
+  private function getStateAndCountryIds(RemotePerson $person): array {
     $countryId = \CRM_Core_Config::singleton()->defaultContactCountry;
-    if (isset($actNetAddress['country'])) {
+    if (!empty($actNetCountry = $person->postalCountry->get())) {
       $countryIdList = \CRM_Core_BAO_Address::buildOptions(
         'country_id',
         'abbreviate'
       );
-      $idFromAbbrev = array_search($actNetAddress['country'], $countryIdList);
+      $idFromAbbrev = array_search($actNetCountry, $countryIdList);
       if ($idFromAbbrev !== FALSE) {
         $countryId = $idFromAbbrev;
       }
     }
-    if (!($stateAbbrev = $actNetAddress['region'] ?? FALSE)) {
+    if (empty($stateAbbrev = $person->postalRegion->get())) {
       return [NULL, $countryId];
     }
     $stateAbbrevList = \CRM_Core_BAO_Address::buildOptions(
@@ -137,8 +130,8 @@ class NineToFive2022May {
 
   public function mapLanguageFromActionNetwork(RemotePerson $remotePerson,
                                                LocalPerson $localPerson): ?array {
-    $rpLanguages = $remotePerson->get('languages_spoken');
-    if ('es' === ($rpLanguages[0] ?? '')) {
+    $rpLanguage = $remotePerson->languageSpoken->get();
+    if ('es' === $rpLanguage) {
       if (empty($localPerson->individualLanguagesSpoken->get())) {
         return ['spa'];
       }
@@ -149,7 +142,7 @@ class NineToFive2022May {
   /**
    * @return void
    */
-  private static function getZipMap(): array {
+  public static function getZipMap(): array {
     static $zipMap;
     if (!isset($zipMap)) {
       $zipMap = include E::path('resources/stateCityZipMap.php');
@@ -221,7 +214,7 @@ class NineToFive2022May {
     ];
   }
 
-  private function addZipCode(LocalPerson $l): ?string {
+  public function addZipCode(LocalPerson $l): ?string {
     $country = $l->addressCountryIdName->get();
     if (!empty($country) && $country !== 'US') {
       return NULL;
