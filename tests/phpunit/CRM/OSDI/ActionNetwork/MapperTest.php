@@ -1,5 +1,6 @@
 <?php
 
+use CRM_OSDI_ActionNetwork_Fixture as Fixture;
 use Civi\Osdi\LocalObject\Person\N2F as LocalPerson;
 use Civi\Test\HeadlessInterface;
 use Civi\Test\HookInterface;
@@ -23,12 +24,12 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
   /**
    * @var \Civi\Osdi\ActionNetwork\RemoteSystem
    */
-  private $system;
+  public static $system;
 
   /**
    * @var \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022May
    */
-  private $mapper;
+  public static $mapper;
 
   public function setUpHeadless(): \Civi\Test\CiviEnvBuilder {
     return \Civi\Test::headless()
@@ -38,14 +39,18 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
   }
 
   public static function setUpBeforeClass(): void {
-    parent::setUpBeforeClass();
+    $osdiClientExtDir = dirname(CRM_Extension_System::singleton()
+      ->getMapper()->keyToPath('osdi-client'));
+    require_once "$osdiClientExtDir/tests/phpunit/CRM/OSDI/ActionNetwork/TestUtils.php";
+
     self::setUpCustomConfig();
+    self::$system = CRM_OSDI_ActionNetwork_TestUtils::createRemoteSystem();
+    self::$mapper = self::createMapper(self::$system);
+
+    parent::setUpBeforeClass();
   }
 
   public function setUp(): void {
-    $this->system = $this->createRemoteSystem();
-    $this->mapper = $this->createMapper($this->system);
-    CRM_OSDI_FixtureHttpClient::resetHistory();
     parent::setUp();
   }
 
@@ -68,189 +73,17 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
   }
 
   public static function setUpCustomConfig(): void {
-    self::setUpCustomPhoneType();
-    self::setUpCustomField();
+    Fixture::setUpCustomPhoneType();
+    Fixture::setUpCustomField();
     \CRM_Core_Config::singleton()->defaultContactCountry = 1228;
   }
 
-  protected static function setUpCustomPhoneType(): void {
-    $phoneTypeExists = \Civi\Api4\OptionValue::get(FALSE)
-      ->addWhere('option_group_id:name', '=', 'phone_type')
-      ->addWhere('name', '=', 'SMS Permission - Mobile')
-      ->selectRowCount()->execute()->count();
-
-    if (!$phoneTypeExists) {
-      $currentMaxValue = \Civi\Api4\OptionValue::get()
-        ->addSelect('MAX(value)')
-        ->addGroupBy('option_group_id')
-        ->addWhere('option_group_id:name', '=', 'phone_type')
-        ->execute()->single()['MAX:value'];
-      $create = \Civi\Api4\OptionValue::create(FALSE)
-        ->setValues([
-          'option_group_id:name' => 'phone_type',
-          'label' => 'SMS Opt In',
-          'value' => $currentMaxValue + 1,
-          'name' => 'SMS Permission - Mobile',
-          'filter' => 0,
-          'is_default' => FALSE,
-          'is_optgroup' => FALSE,
-          'is_reserved' => FALSE,
-          'is_active' => TRUE,
-        ])->execute()->single();
-      self::$createdEntities['OptionValue'][] = $create['id'];
-    }
-  }
-
-  protected static function setUpGeocoding(): void {
-    $googleAPIToken = file_get_contents(__DIR__ . DIRECTORY_SEPARATOR . 'GoogleAPIToken');
-    \Civi\Api4\Setting::set()
-      ->addValue('geoProvider', 'Google')
-      ->addValue('geoAPIKey', $googleAPIToken)
-      ->addValue('mapProvider', 'Google')
-      ->addValue('mapAPIKey', $googleAPIToken)
-      ->execute();
-    CRM_Utils_GeocodeProvider::reset();
-  }
-
-  protected static function disableGeocoding(): void {
-    \Civi\Api4\Setting::revert()
-      ->addSelect('geoProvider', 'mapProvider', 'geoAPIKey', 'mapAPIKey')
-      ->execute();
-    CRM_Utils_GeocodeProvider::reset();
-  }
-
-  protected static function setUpCustomField(): void {
-    $customGroupExists = \Civi\Api4\CustomGroup::get(FALSE)
-      ->addWhere('name', '=', 'Individual')
-      ->selectRowCount()->execute()->count();
-    if (!$customGroupExists) {
-      \Civi\Api4\CustomGroup::create(FALSE)
-        ->setValues([
-          'name' => 'Individual',
-          'title' => 'More about this individual',
-          'extends' => 'Individual',
-          'style' => 'Inline',
-          'collapse_display' => FALSE,
-          'weight' => 7,
-          'is_active' => TRUE,
-          'table_name' => 'civicrm_value_individual',
-          'is_multiple' => FALSE,
-          'collapse_adv_display' => FALSE,
-          'is_reserved' => FALSE,
-          'is_public' => TRUE,
-        ])->execute();
-    }
-
-    $optionGroupExists = \Civi\Api4\OptionGroup::get(FALSE)
-      ->addWhere('name', '=', 'languages_spoken')
-      ->selectRowCount()->execute()->count();
-    if (!$optionGroupExists) {
-      \Civi\Api4\OptionGroup::create(FALSE)
-        ->setValues([
-          'name' => 'languages_spoken',
-          'title' => 'Languages Spoken',
-          'data_type' => 'String',
-          'is_reserved' => FALSE,
-          'is_active' => TRUE,
-          'is_locked' => FALSE,
-        ])->execute();
-      \Civi\Api4\OptionValue::save(FALSE)
-        ->setRecords([
-          [
-            'option_group_id:name' => 'languages_spoken',
-            'label' => 'English',
-            'value' => 'eng',
-            'name' => 'English',
-            'filter' => 0,
-            'is_default' => FALSE,
-            'weight' => 1,
-            'description' => '',
-            'is_optgroup' => FALSE,
-            'is_reserved' => FALSE,
-            'is_active' => TRUE,
-          ],
-          [
-            'option_group_id:name' => 'languages_spoken',
-            'label' => 'Español',
-            'value' => 'spa',
-            'name' => 'Espa_ol',
-            'filter' => 0,
-            'is_default' => FALSE,
-            'weight' => 2,
-            'description' => '',
-            'is_optgroup' => FALSE,
-            'is_reserved' => FALSE,
-            'is_active' => TRUE,
-          ],
-          [
-            'option_group_id:name' => 'languages_spoken',
-            'label' => 'English y Español',
-            'value' => 'eng&spa',
-            'name' => 'I_speak_English_and_Spanish_Hab',
-            'is_default' => FALSE,
-            'weight' => 3,
-            'description' => '',
-            'is_optgroup' => FALSE,
-            'is_reserved' => FALSE,
-            'is_active' => TRUE,
-          ],
-        ])->execute();
-    }
-
-    $customFieldExists = \Civi\Api4\CustomField::get(FALSE)
-      ->addWhere('name', '=', 'Languages_spoken')
-      ->selectRowCount()->execute()->count();
-    if (!$customFieldExists) {
-      \Civi\Api4\CustomField::create(FALSE)
-        ->setValues([
-          'custom_group_id:name' => 'Individual',
-          'name' => 'Languages_spoken',
-          'label' => 'Languages/ Idiomas',
-          'data_type' => 'String',
-          'html_type' => 'Select',
-          'is_searchable' => TRUE,
-          'is_search_range' => FALSE,
-          'weight' => 164,
-          'is_active' => TRUE,
-          'text_length' => 255,
-          'note_columns' => 60,
-          'note_rows' => 4,
-          'column_name' => 'languages_spoken',
-          'option_group_id:name' => 'languages_spoken',
-          'serialize' => 1,
-          'in_selector' => FALSE,
-        ])->execute();
-    }
-  }
-
-  public function createRemoteSystem(): \Civi\Osdi\ActionNetwork\RemoteSystem {
-    $osdiClientExtDir = dirname(\CRM_Extension_System::singleton()
-      ->getMapper()
-      ->keyToPath('osdi-client'));
-    require_once "$osdiClientExtDir/tests/phpunit/CRM/OSDI/HttpClient.php";
-    require_once "$osdiClientExtDir/tests/phpunit/CRM/OSDI/FixtureHttpClient.php";
-    $systemProfile = new CRM_OSDI_BAO_SyncProfile();
-    $systemProfile->entry_point = 'https://actionnetwork.org/api/v2/';
-    $systemProfile->api_token = file_get_contents(
-      $osdiClientExtDir
-      . '/tests/phpunit/CRM/OSDI/ActionNetwork/apiToken');
-    //    $client = new Jsor\HalClient\HalClient(
-    //        'https://actionnetwork.org/api/v2/',
-    //         new CRM_OSDI_FixtureHttpClient()
-    //    );
-    $client = new Jsor\HalClient\HalClient(
-      'https://actionnetwork.org/api/v2/' //,
-      //CRM_OSDI_HttpClient::client(),
-    );
-    return new Civi\Osdi\ActionNetwork\RemoteSystem($systemProfile, $client);
-  }
-
-  private function createMapper(\Civi\Osdi\ActionNetwork\RemoteSystem $system) {
+  public static function createMapper(\Civi\Osdi\ActionNetwork\RemoteSystem $system) {
     return new Civi\Osdi\ActionNetwork\Mapper\NineToFive2022May($system);
   }
 
   public function makeBlankOsdiPerson(): \Civi\Osdi\ActionNetwork\Object\Person {
-    return new \Civi\Osdi\ActionNetwork\Object\Person($this->system);
+    return new \Civi\Osdi\ActionNetwork\Object\Person(self::$system);
   }
 
   /**
@@ -325,7 +158,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $this->assertEquals('Missouri', $civiContact['address.state_province_id:name']);
     $stateAbbreviation = 'MO';
 
-    $result = $this->mapper->mapLocalToRemote(
+    $result = self::$mapper->mapLocalToRemote(
       new LocalPerson($civiContact['id']));
     $this->assertEquals('Civi\Osdi\ActionNetwork\Object\Person', get_class($result));
     $this->assertEquals($civiContact['first_name'], $result->givenName->get());
@@ -348,7 +181,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
       ->setValues(['first_name' => 'DifferentFirst', 'last_name' => 'DifferentLast'])
       ->execute();
 
-    $result = $this->mapper->mapLocalToRemote(
+    $result = self::$mapper->mapLocalToRemote(
       new LocalPerson($civiContact['id']),
       $existingRemotePerson
     );
@@ -368,7 +201,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
       ->addValue('phone', '19098887777')
       ->execute();
 
-    $result = $this->mapper->mapLocalToRemote(
+    $result = self::$mapper->mapLocalToRemote(
       new LocalPerson($civiContact['id']),
       $existingRemotePerson
     );
@@ -386,7 +219,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
       ->addValue('do_not_email', TRUE)
       ->execute();
 
-    $result = $this->mapper->mapLocalToRemote(
+    $result = self::$mapper->mapLocalToRemote(
       new LocalPerson($civiContact['id']),
       $existingRemotePerson
     );
@@ -402,7 +235,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
       ->addValue('do_not_sms', TRUE)
       ->execute();
 
-    $result = $this->mapper->mapLocalToRemote(
+    $result = self::$mapper->mapLocalToRemote(
       new LocalPerson($civiContact['id']),
       $existingRemotePerson
     );
@@ -418,7 +251,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
       ->addWhere('phone_type_id:name', '=', 'SMS Permission - Mobile')
       ->execute();
 
-    $result = $this->mapper->mapLocalToRemote(
+    $result = self::$mapper->mapLocalToRemote(
       new LocalPerson($civiContact['id']),
       $existingRemotePerson
     );
@@ -434,7 +267,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
       ->addValue('is_opt_out', TRUE)
       ->execute();
 
-    $result = $this->mapper->mapLocalToRemote(
+    $result = self::$mapper->mapLocalToRemote(
       new LocalPerson($civiContact['id']),
       $existingRemotePerson
     );
@@ -455,7 +288,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
       ->addValue('do_not_phone', TRUE)
       ->execute();
 
-    $result = $this->mapper->mapLocalToRemote(
+    $result = self::$mapper->mapLocalToRemote(
       new LocalPerson($civiContact['id']),
       $existingRemotePerson
     );
@@ -483,7 +316,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $cid = $createContact->single()['id'];
     self::$createdEntities['Contact'][] = $cid;
 
-    $result = $this->mapper->mapLocalToRemote(new LocalPerson($cid));
+    $result = self::$mapper->mapLocalToRemote(new LocalPerson($cid));
     $this->assertEmpty($result->postalLocality->get() ?? NULL);
     $this->assertEquals('MO', $result->postalRegion->get());
     $this->assertEquals('63464', $result->postalCode->get());
@@ -508,15 +341,15 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $cid = $createContact->single()['id'];
     self::$createdEntities['Contact'][] = $cid;
 
-    self::setUpGeocoding();
+    Fixture::setUpGeocoding();
     try {
-      $result = $this->mapper->mapLocalToRemote(new LocalPerson($cid));
+      $result = self::$mapper->mapLocalToRemote(new LocalPerson($cid));
     }
     catch (Throwable $e) {
       self::fail($e->getMessage());
     }
     finally {
-      self::disableGeocoding();
+      Fixture::disableGeocoding();
     }
 
     $this->assertEquals('Ty Ty', $result->postalLocality->get());
@@ -543,15 +376,15 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $cid = $createContact->single()['id'];
     self::$createdEntities['Contact'][] = $cid;
 
-    self::setUpGeocoding();
+    Fixture::setUpGeocoding();
     try {
-      $result = $this->mapper->mapLocalToRemote(new LocalPerson($cid));
+      $result = self::$mapper->mapLocalToRemote(new LocalPerson($cid));
     }
     catch (Throwable $e) {
       self::fail($e->getMessage());
     }
     finally {
-      self::disableGeocoding();
+      Fixture::disableGeocoding();
     }
 
     $this->assertEquals('San Francisco', $result->postalLocality->get());
@@ -570,7 +403,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $this->assertEquals('MO', $remotePerson->postalRegion->get());
     $stateName = 'Missouri';
 
-    $result = $this->mapper->mapRemoteToLocal($remotePerson);
+    $result = self::$mapper->mapRemoteToLocal($remotePerson);
     $this->assertEquals(\Civi\Osdi\LocalObject\Person\N2F::class, get_class($result));
     $cid = $result->save()->getId();
     $resultContact = Civi\Api4\Contact::get(0)
@@ -607,7 +440,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     self::assertEmpty($sparserRemotePerson->familyName->get());
     self::assertEmpty($sparserRemotePerson->postalLocality->get() ?? NULL);
 
-    $mappedLocalPerson = $this->mapper->mapRemoteToLocal(
+    $mappedLocalPerson = self::$mapper->mapRemoteToLocal(
       $sparserRemotePerson,
       new LocalPerson($existingLocalContactId)
     );
@@ -624,7 +457,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $existingRemotePerson->familyName->set('DifferentLast');
     $alteredRemotePerson = $existingRemotePerson->save();
 
-    $mappedLocalPerson = $this->mapper->mapRemoteToLocal(
+    $mappedLocalPerson = self::$mapper->mapRemoteToLocal(
       $alteredRemotePerson,
       new LocalPerson($existingLocalContactId)
     );
@@ -650,7 +483,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $existingRemotePerson->phoneStatus->set('subscribed');
     $alteredRemotePerson = $existingRemotePerson->save();
 
-    $result = $this->mapper->mapRemoteToLocal(
+    $result = self::$mapper->mapRemoteToLocal(
       $alteredRemotePerson,
       new LocalPerson($existingLocalContactId)
     );
@@ -670,7 +503,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $existingRemotePerson->phoneStatus->set('unsubscribed');
     $alteredRemotePerson = $existingRemotePerson->save();
 
-    $result = $this->mapper->mapRemoteToLocal(
+    $result = self::$mapper->mapRemoteToLocal(
       $alteredRemotePerson,
       $existingLocalPerson
     );
@@ -691,7 +524,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $unsavedNewPerson->customFields->set(['Dummy ZIP' => '54643']);
     $remotePerson = $unsavedNewPerson->save();
 
-    $result = $this->mapper->mapRemoteToLocal($remotePerson)->save();
+    $result = self::$mapper->mapRemoteToLocal($remotePerson)->save();
     self::$createdEntities['Contact'][] = $result->getId();
 
     self::assertEquals('WI', $result->addressStateProvinceIdAbbreviation->get());

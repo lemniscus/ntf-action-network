@@ -1,0 +1,8 @@
+﻿id,modifiedDate,givenName,familyName,emailAddress,emailStatus,phoneNumber,phoneStatus,postalStreet,postalLocality,postalRegion,postalCode,postalCountry,languageSpoken
+08ff4162-ba50-11e3-a134-12313d1576ca,2099-09-09T23:59:59Z,Cesar,Chavez,si.se@pue.de,subscribed,19705551212,subscribed,,,,,,es
+884523f4-4908-4a66-870c-fdacb3571d39,2000-01-01T00:00:00Z,Augustus,Wright,auwt7654@gmail.com,subscribed,,subscribed,,Albany,NY,,US,en
+2211776a-ba50-11e3-a134-12313d1576ca,2000-01-01T00:00:00Z,Oona,Gee,oona@gee.net,subscribed,,subscribed,8900 Freeport Dr,Englewood,CO,,US,en
+e1588703-2dad-4a5e-af90-07364d5e0999,2000-01-01T00:00:00Z,Rita,,ritamoreno4278@hotmail.com,unsubscribed,,unsubscribed,,Macon,GA,,US,es
+c27cce46-6c6e-4a81-a6eb-fad348cd7dd6,2000-01-01T00:00:00Z,Douglas,Fairbanks,douglas.fairbanks@ppcc.edu,subscribed,,subscribed,1605 1/2 N Nevada,Colorado Springs,CO,80907,US,en
+0c6dea42-ba50-11e3-a134-12313d1576ca,2000-01-01T00:00:00Z,Wyatt,Winning,wwinning@comcast.net,subscribed,,subscribed,41 Elmview Terrace,Boston,MA,02130,US,en
+7ce0873b-c438-4e25-8b9b-7a836437b979,2000-01-01T00:00:00Z,Kay,Kurasawa,kkurasawa@gmail.com,,,,,,,,,en

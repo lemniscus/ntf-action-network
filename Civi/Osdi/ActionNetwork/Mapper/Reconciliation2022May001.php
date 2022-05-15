@@ -4,8 +4,8 @@ namespace Civi\Osdi\ActionNetwork\Mapper;
 
 use Civi\Osdi\ActionNetwork\Object\Person as RemotePerson;
 use Civi\Osdi\LocalObject\Person\N2F as LocalPerson;
+use Civi\Osdi\LocalRemotePair;
 use Civi\Osdi\RemoteSystemInterface;
-use CRM_NtfActionNetwork_ExtensionUtil as E;
 
 class Reconciliation2022May001 {
 
@@ -28,12 +28,15 @@ class Reconciliation2022May001 {
   }
 
   public function reconcile(LocalPerson $localPerson,
-                            RemotePerson $remotePerson): RemotePerson {
+                            RemotePerson $remotePerson): LocalRemotePair {
 
-    $l = $localPerson->loadOnce();
+    $l = $localPerson->getId() ? $localPerson->loadOnce() : $localPerson;
     $r = $remotePerson;
+    $messages = [];
 
-    $localIsNewer = ($l->modifiedDate->get() > $r->modifiedDate->get());
+    $localModTime = strtotime($l->modifiedDate->get());
+    $remoteModTime = strtotime($r->modifiedDate->get());
+    $localIsNewer = ($localModTime > $remoteModTime);
 
     // emails should already match.
     // names should already match if matcher is working according to spec.
@@ -57,56 +60,94 @@ class Reconciliation2022May001 {
     $l->doNotEmail->set($noEmailsRemote ? TRUE : $l->doNotEmail->get());
 
     if ($localIsNewer) {
-      $this->mapPhoneFromLocalToRemote($l, $r);
+      $message = $this->mapPhoneFromLocalToRemote($l, $r);
     }
     else {
-      $this->mapPhoneFromRemoteToLocal($r, $localPerson);
+      $message = $this->mapPhoneFromRemoteToLocal($r, $localPerson);
+    }
+    if ($message) {
+      $messages[] = $message;
     }
 
-    if (empty($zip = $l->addressPostalCode->get())) {
-      $dummyZip = $this->normalMapper->addZipCode($l);
-      $zip = $l->addressPostalCode->get();
+    $streetAddressesMatch = $l->addressStreetAddress->get() == $r->postalStreet->get();
+    $addressesMatch = $streetAddressesMatch
+      && ($l->addressCity->get() == $r->postalLocality->get())
+      && ($l->addressStateProvinceIdAbbreviation->get() == $r->postalRegion->get());
+
+    if (empty($zipForActNet = $l->addressPostalCode->get()) && !$addressesMatch) {
+      $dummyZip = $this->normalMapper->addRealZipOrReturnDummy($l);
+      if ($dummyZip) {
+        $zipForActNet = $dummyZip;
+      }
+      else {
+        $zipForActNet = $l->addressPostalCode->get();
+      }
     }
-    if ($zip) {
+
+    if ($zipForActNet) {
+      if ($zipForActNet !== $r->postalCode->get()) {
+        $r->customFields->set(array_merge(
+          $r->customFields->get() ?? [],
+          ['Dummy ZIP' => $dummyZip ?? 'no']
+        ));
+      }
+
       $r->postalStreet->set($l->addressStreetAddress->get());
       $r->postalLocality->set($l->addressCity->get());
       $r->postalRegion->set($l->addressStateProvinceIdAbbreviation->get());
-      $r->postalCode->set($zip);
+      $r->postalCode->set($zipForActNet);
       $r->postalCountry->set($l->addressCountryIdName->get());
-    }
-    $r->customFields->set(array_merge(
-        $r->customFields->get() ?? [],
-        ['Dummy ZIP' => $dummyZip ?? 'no']
-      ));
 
-    return $r;
+      if (!$streetAddressesMatch) {
+        $messages[] = 'street address was changed';
+      }
+
+    }
+
+    return new LocalRemotePair($l, $r, FALSE, implode('; ', $messages));
   }
 
-  private function mapPhoneFromLocalToRemote(LocalPerson $l, RemotePerson $r): void {
+  private function mapPhoneFromLocalToRemote(LocalPerson $l, RemotePerson $r): ?string {
     $phoneNumberLocal = $l->smsPhonePhoneNumeric->get();
+    if (empty($phoneNumberLocal) && empty($r->phoneNumber->get())) {
+      return NULL;
+    }
     $noSms = $l->isOptOut->get() || $l->doNotSms->get() || empty($phoneNumberLocal);
     $r->phoneNumber->set($phoneNumberLocal);
+    if ($r->phoneNumber->isAltered()) {
+      $message = 'changing phone on a.n. can have unexpected results';
+    }
     $r->phoneStatus->set($noSms ? 'unsubscribed' : 'subscribed');
+    return $message ?? NULL;
   }
 
-  private function mapPhoneFromRemoteToLocal(RemotePerson $r, LocalPerson $l): void {
+  private function mapPhoneFromRemoteToLocal(RemotePerson $r, LocalPerson $l): ?string {
     $phoneNumberRemote = $r->phoneNumber->get();
 
     if (empty($phoneNumberRemote)) {
       $l->smsPhonePhone->set(NULL);
-      return;
+      return NULL;
     }
+
+    $phoneNumberRemote = preg_replace('/[^0-9]/', '', $phoneNumberRemote);
+    $phoneNumberRemote = preg_replace('/^1(\d{10})$/', '$1', $phoneNumberRemote);
 
     if ('subscribed' === $r->phoneStatus->get()) {
       $l->smsPhonePhone->set($phoneNumberRemote);
       $l->smsPhoneIsPrimary->set(TRUE);
+      if ($l->nonSmsMobilePhoneIsPrimary->get()) {
+        $l->nonSmsMobilePhoneIsPrimary->set(FALSE);
+      }
+      if ($phoneNumberRemote === $l->nonSmsMobilePhonePhoneNumeric->get()) {
+        $l->nonSmsMobilePhonePhone->set(NULL);
+      }
     }
     else {
       $l->smsPhonePhone->set(NULL);
       $l->nonSmsMobilePhonePhone->set($phoneNumberRemote);
       $l->nonSmsMobilePhoneIsPrimary->set(TRUE);
     }
-
+    return NULL;
   }
 
 }

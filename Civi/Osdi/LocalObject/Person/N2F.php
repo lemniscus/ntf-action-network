@@ -29,6 +29,7 @@ class N2F extends Person {
     'doNotEmail' => ['select' => 'do_not_email'],
     'doNotSms' => ['select' => 'do_not_sms'],
     'individualLanguagesSpoken' => ['select' => 'Individual.Languages_spoken'],
+    'isDeleted' => ['select' => 'is_deleted'],
     'emailId' => ['select' => 'email.id'],
     'emailEmail' => ['select' => 'email.email'],
     'nonSmsMobilePhoneId' => ['select' => 'non_sms_mobile_phone.id'],
@@ -78,6 +79,7 @@ class N2F extends Person {
 
   protected function saveCoreContactFields() {
     $cid = Contact::save(FALSE)->addRecord([
+      'contact_type' => 'Individual',
       'id' => $this->getId(),
       'first_name' => $this->firstName->get(),
       'last_name' => $this->lastName->get(),
