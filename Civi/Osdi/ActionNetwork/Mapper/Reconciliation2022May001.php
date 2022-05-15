@@ -69,7 +69,7 @@ class Reconciliation2022May001 {
       $messages[] = $message;
     }
 
-    $streetAddressesMatch = $l->addressStreetAddress->get() == $r->postalStreet->get();
+    $streetAddressesMatch = $this->streetAddressesMatch($l, $r);
     $addressesMatch = $streetAddressesMatch
       && ($l->addressCity->get() == $r->postalLocality->get())
       && ($l->addressStateProvinceIdAbbreviation->get() == $r->postalRegion->get());
@@ -98,7 +98,7 @@ class Reconciliation2022May001 {
       $r->postalCode->set($zipForActNet);
       $r->postalCountry->set($l->addressCountryIdName->get());
 
-      if (!$streetAddressesMatch) {
+      if (!$streetAddressesMatch && !empty($r->postalStreet->getOriginal())) {
         $messages[] = 'street address was changed';
       }
 
@@ -108,46 +108,90 @@ class Reconciliation2022May001 {
   }
 
   private function mapPhoneFromLocalToRemote(LocalPerson $l, RemotePerson $r): ?string {
-    $phoneNumberLocal = $l->smsPhonePhoneNumeric->get();
-    if (empty($phoneNumberLocal) && empty($r->phoneNumber->get())) {
+    $phoneNumberRemote = $r->phoneNumber->get();
+    $phoneNumberLocal = $l->smsPhonePhone->get();
+    $phoneNumberRemoteNorm = $this->normalizePhoneNumber($phoneNumberRemote);
+    $phoneNumberLocalNorm = $this->normalizePhoneNumber($phoneNumberLocal);
+
+    if (empty($phoneNumberLocalNorm) && empty($phoneNumberRemoteNorm)) {
       return NULL;
     }
-    $noSms = $l->isOptOut->get() || $l->doNotSms->get() || empty($phoneNumberLocal);
-    $r->phoneNumber->set($phoneNumberLocal);
-    if ($r->phoneNumber->isAltered()) {
+
+    if (!empty($phoneNumberLocalNorm) && $phoneNumberLocalNorm !== $phoneNumberRemoteNorm) {
+      $r->phoneNumber->set($phoneNumberLocalNorm);
       $message = 'changing phone on a.n. can have unexpected results';
     }
+
+    $noSms = $l->isOptOut->get() || $l->doNotSms->get() || empty($phoneNumberLocalNorm);
     $r->phoneStatus->set($noSms ? 'unsubscribed' : 'subscribed');
+
     return $message ?? NULL;
   }
 
   private function mapPhoneFromRemoteToLocal(RemotePerson $r, LocalPerson $l): ?string {
     $phoneNumberRemote = $r->phoneNumber->get();
+    $phoneNumberLocal = $l->smsPhonePhone->get();
+    $phoneNumberRemoteNorm = $this->normalizePhoneNumber($phoneNumberRemote);
+    $phoneNumberLocalNorm = $this->normalizePhoneNumber($phoneNumberLocal);
 
-    if (empty($phoneNumberRemote)) {
-      $l->smsPhonePhone->set(NULL);
-      return NULL;
-    }
-
-    $phoneNumberRemote = preg_replace('/[^0-9]/', '', $phoneNumberRemote);
-    $phoneNumberRemote = preg_replace('/^1(\d{10})$/', '$1', $phoneNumberRemote);
-
-    if ('subscribed' === $r->phoneStatus->get()) {
-      $l->smsPhonePhone->set($phoneNumberRemote);
+    if ('subscribed' === $r->phoneStatus->get() && !empty($phoneNumberRemoteNorm)) {
+      if ($phoneNumberRemoteNorm !== $phoneNumberLocalNorm) {
+        $l->smsPhonePhone->set($phoneNumberRemoteNorm);
+      }
       $l->smsPhoneIsPrimary->set(TRUE);
       if ($l->nonSmsMobilePhoneIsPrimary->get()) {
         $l->nonSmsMobilePhoneIsPrimary->set(FALSE);
       }
-      if ($phoneNumberRemote === $l->nonSmsMobilePhonePhoneNumeric->get()) {
+      if ($phoneNumberRemoteNorm === $this->normalizePhoneNumber($l->nonSmsMobilePhonePhoneNumeric->get())) {
         $l->nonSmsMobilePhonePhone->set(NULL);
       }
     }
     else {
       $l->smsPhonePhone->set(NULL);
-      $l->nonSmsMobilePhonePhone->set($phoneNumberRemote);
+      $l->nonSmsMobilePhonePhone->set($phoneNumberRemoteNorm);
       $l->nonSmsMobilePhoneIsPrimary->set(TRUE);
     }
     return NULL;
+  }
+
+  private function normalizePhoneNumber(?string $phoneNumber = ''): string {
+    $phoneNumber = preg_replace('/[^0-9]/', '', $phoneNumber);
+    $phoneNumber = preg_replace('/^1(\d{10})$/', '$1', $phoneNumber);
+    $phoneNumber = preg_replace('/^(\d{3})(\d{3})(\d{4})$/', '($1) $2-$3', $phoneNumber);
+    return $phoneNumber;
+  }
+
+  private function streetAddressesMatch(LocalPerson $l, RemotePerson $r): bool {
+    $norm = function ($subject) {
+      $patterns = [
+        '/\\bN\\b\\.?/i',
+        '/\\bS\\b\\.?/i',
+        '/\\bAve\\b\\.?/i',
+        '/\\bBlvd\\b\\.?/i',
+        '/\\bCir\\b\\.?/i',
+        '/\\bCt\\b\\.?/i',
+        '/\\bHwy\\b\\.?/i',
+        '/\\bLn\\b\\.?/i',
+        '/\\bRd\\b\\.?/i',
+        '/\\bRte\\b\\.?/i',
+        '/\\bSt\\b\\.?/i',
+      ];
+      $replacements = [
+        'North',
+        'South',
+        'Avenue',
+        'Boulevard',
+        'Circle',
+        'Court',
+        'Highway',
+        'Lane',
+        'Road',
+        'Route',
+        'Street',
+      ];
+      return strtolower(preg_replace($patterns, $replacements, $subject));
+    };
+    return $norm($l->addressStreetAddress->get()) === $norm($r->postalStreet->get());
   }
 
 }
