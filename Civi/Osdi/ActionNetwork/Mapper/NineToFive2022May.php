@@ -38,15 +38,21 @@ class NineToFive2022May {
     $remotePerson->phoneNumber->set($phoneNumber);
     $remotePerson->phoneStatus->set($noSms ? 'unsubscribed' : 'subscribed');
 
-    if (empty($zip = $l->addressPostalCode->get())) {
-      $dummyZip = $this->addZipCode($l);
-      $zip = $l->addressPostalCode->get();
+    if (empty($zipForActNet = $l->addressPostalCode->get())) {
+      $dummyZip = $this->addRealZipOrReturnDummy($l);
+      if ($dummyZip) {
+        $zipForActNet = $dummyZip;
+      }
+      else {
+        $zipForActNet = $l->addressPostalCode->get();
+      }
     }
-    if ($zip) {
+
+    if ($zipForActNet) {
       $remotePerson->postalStreet->set($l->addressStreetAddress->get());
       $remotePerson->postalLocality->set($l->addressCity->get());
       $remotePerson->postalRegion->set($l->addressStateProvinceIdAbbreviation->get());
-      $remotePerson->postalCode->set($zip);
+      $remotePerson->postalCode->set($zipForActNet);
       $remotePerson->postalCountry->set($l->addressCountryIdName->get());
     }
     $remotePerson->customFields->set(array_merge(
@@ -214,7 +220,7 @@ class NineToFive2022May {
     ];
   }
 
-  public function addZipCode(LocalPerson $l): ?string {
+  public function addRealZipOrReturnDummy(LocalPerson $l): ?string {
     $country = $l->addressCountryIdName->get();
     if (!empty($country) && $country !== 'US') {
       return NULL;
@@ -226,7 +232,6 @@ class NineToFive2022May {
 
     if (empty($city = $l->addressCity->get())) {
       $dummyZip = self::getDummyZIPCodes()[$state];
-      $l->addressPostalCode->set($dummyZip);
       return $dummyZip;
     }
 
@@ -244,7 +249,6 @@ class NineToFive2022May {
     }
 
     $dummyZip = self::getZipMap()[$state][$city] ?? NULL;
-    $l->addressPostalCode->set($dummyZip);
     return $dummyZip;
   }
 
