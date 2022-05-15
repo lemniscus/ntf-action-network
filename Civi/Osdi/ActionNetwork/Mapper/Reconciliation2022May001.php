@@ -148,8 +148,10 @@ class Reconciliation2022May001 {
     }
     else {
       $l->smsPhonePhone->set(NULL);
-      $l->nonSmsMobilePhonePhone->set($phoneNumberRemoteNorm);
-      $l->nonSmsMobilePhoneIsPrimary->set(TRUE);
+      if (!empty($phoneNumberRemoteNorm)) {
+        $l->nonSmsMobilePhonePhone->set($phoneNumberRemoteNorm);
+        $l->nonSmsMobilePhoneIsPrimary->set(TRUE);
+      }
     }
     return NULL;
   }
