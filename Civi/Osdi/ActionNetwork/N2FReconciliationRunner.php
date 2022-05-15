@@ -33,6 +33,9 @@ class N2FReconciliationRunner {
   private $statusFile;
 
   public function __construct() {
+    $osdiClientExtDir = dirname(\CRM_Extension_System::singleton()
+      ->getMapper()->keyToPath('osdi-client'));
+    require_once "$osdiClientExtDir/tests/phpunit/CRM/OSDI/ActionNetwork/TestUtils.php";
     $this->system = \CRM_OSDI_ActionNetwork_TestUtils::createRemoteSystem();
   }
 
@@ -46,7 +49,6 @@ class N2FReconciliationRunner {
 
   public function run() {
     $this->mapper = new Reconciliation2022May001($this->system);
-    \CRM_OSDI_ActionNetwork_Fixture::setUpGeocoding();
 
     $header = $this->getHeader();
     $this->columnOffsets = $columnOffsets = array_flip($header);

@@ -158,6 +158,7 @@ class CRM_OSDI_ActionNetwork_ReconcilerTest extends \PHPUnit\Framework\TestCase 
     $xavierLocal->addressStateProvinceId->set('1025');
     $xavierLocal->save();
 
+    \CRM_OSDI_ActionNetwork_Fixture::setUpGeocoding();
     $main = new \Civi\Osdi\ActionNetwork\N2FReconciliationRunner();
     $main->setInput(__DIR__ . '/reconciliationTestCSVInput.csv');
     $outputFilePath = __DIR__ . '/reconciliationTestOutput.csv';
