@@ -178,6 +178,8 @@ class Reconciliation2022May001 {
       $patterns = [
         '/\\bN\\b\\.?/i',
         '/\\bS\\b\\.?/i',
+        '/\\bE\\b\\.?/i',
+        '/\\bW\\b\\.?/i',
         '/\\bAve\\b\\.?/i',
         '/\\bBlvd\\b\\.?/i',
         '/\\bCir\\b\\.?/i',
@@ -192,6 +194,8 @@ class Reconciliation2022May001 {
       $replacements = [
         'North',
         'South',
+        'East',
+        'West',
         'Avenue',
         'Boulevard',
         'Circle',

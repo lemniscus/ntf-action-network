@@ -151,8 +151,11 @@ class N2FReconciliationRunner {
         $localPerson = new LocalPerson($civiContactId);
         $this->processCiviBefore($localPerson->loadOnce(), $outRow);
 
-        $namesMatch = trim($localPerson->firstName->get()) === trim($remotePerson->givenName->get())
-          && trim($localPerson->lastName->get()) === trim($remotePerson->familyName->get());
+        $namesMatch =
+          strtolower(trim($localPerson->firstName->get()))
+              === strtolower(trim($remotePerson->givenName->get()))
+          && strtolower(trim($localPerson->lastName->get()))
+              === strtolower(trim($remotePerson->familyName->get()));
 
         if (!$namesMatch) {
           $outRow[$columnOffsets['match status']] = 'match error';
