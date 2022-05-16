@@ -72,7 +72,7 @@ class Reconciliation2022May001 {
     $noSmsRemote = $r->phoneStatus->get() === 'unsubscribed' && !empty($r->phoneNumber->get());
     $noSmsLocal = $l->isOptOut->get() || $l->doNotSms->get();
     if ($noSmsRemote && !$noSmsLocal) {
-      $l->doNotEmail->set(TRUE);
+      $l->doNotSms->set(TRUE);
     }
     if ($noSmsLocal && !empty($r->phoneNumber->get()) && $r->phoneStatus->get() !== 'bouncing') {
       $r->phoneStatus->set('unsubscribed');
