@@ -81,9 +81,16 @@ class N2FReconciliationRunner {
         continue;
       }
 
+      $localPerson = (new LocalPerson($emailRecord['contact_id']))->loadOnce();
+
+      if ('noemail@' === substr($localPerson->emailEmail->get(), 0, 8)) {
+        if (empty($localPerson->smsPhonePhone->get())) {
+          continue;
+        }
+      }
+
       $outRow = $emptyOutRow;
-      $localPerson = new LocalPerson($emailRecord['contact_id']);
-      $this->processCiviBefore($localPerson->loadOnce(), $outRow);
+      $this->processCiviBefore($localPerson, $outRow);
 
       if ($emailRecord['count_contact_id'] > 1) {
         $outRow[$columnOffsets['match status']] = 'match error';
@@ -144,8 +151,8 @@ class N2FReconciliationRunner {
         $localPerson = new LocalPerson($civiContactId);
         $this->processCiviBefore($localPerson->loadOnce(), $outRow);
 
-        $namesMatch = $localPerson->firstName->get() === $remotePerson->givenName->get()
-          && $localPerson->lastName->get() === $remotePerson->familyName->get();
+        $namesMatch = trim($localPerson->firstName->get()) === trim($remotePerson->givenName->get())
+          && trim($localPerson->lastName->get()) === trim($remotePerson->familyName->get());
 
         if (!$namesMatch) {
           $outRow[$columnOffsets['match status']] = 'match error';

@@ -69,6 +69,15 @@ class Reconciliation2022May001 {
       $messages[] = $message;
     }
 
+    $noSmsRemote = $r->phoneStatus->get() === 'unsubscribed' && !empty($r->phoneNumber->get());
+    $noSmsLocal = $l->isOptOut->get() || $l->doNotSms->get();
+    if ($noSmsRemote && !$noSmsLocal) {
+      $l->doNotEmail->set(TRUE);
+    }
+    if ($noSmsLocal && !empty($r->phoneNumber->get()) && $r->phoneStatus->get() !== 'bouncing') {
+      $r->phoneStatus->set('unsubscribed');
+    }
+
     $streetAddressesMatch = $this->streetAddressesMatch($l, $r);
     $addressesMatch = $streetAddressesMatch
       && ($l->addressCity->get() == $r->postalLocality->get())
@@ -108,51 +117,52 @@ class Reconciliation2022May001 {
   }
 
   private function mapPhoneFromLocalToRemote(LocalPerson $l, RemotePerson $r): ?string {
-    $phoneNumberRemote = $r->phoneNumber->get();
-    $phoneNumberLocal = $l->smsPhonePhone->get();
-    $phoneNumberRemoteNorm = $this->normalizePhoneNumber($phoneNumberRemote);
-    $phoneNumberLocalNorm = $this->normalizePhoneNumber($phoneNumberLocal);
+    $remoteNumberNorm = $this->normalizePhoneNumber($r->phoneNumber->get());
+    $localNumberNorm = $this->normalizePhoneNumber($l->smsPhonePhone->get());
 
-    if (empty($phoneNumberLocalNorm) && empty($phoneNumberRemoteNorm)) {
+    if (empty($localNumberNorm) && empty($remoteNumberNorm)) {
       return NULL;
     }
 
-    if (!empty($phoneNumberLocalNorm) && $phoneNumberLocalNorm !== $phoneNumberRemoteNorm) {
-      $r->phoneNumber->set($phoneNumberLocalNorm);
+    if (!empty($localNumberNorm) && ($localNumberNorm !== $remoteNumberNorm)) {
+      $r->phoneNumber->set($localNumberNorm);
+      $r->phoneStatus->set('subscribed');
       $message = 'changing phone on a.n. can have unexpected results';
     }
 
-    $noSms = $l->isOptOut->get() || $l->doNotSms->get() || empty($phoneNumberLocalNorm);
-    $r->phoneStatus->set($noSms ? 'unsubscribed' : 'subscribed');
+    if (empty($localNumberNorm) && !empty($remoteNumberNorm)) {
+      if ($r->phoneStatus->get() !== 'bouncing') {
+        $r->phoneStatus->set('unsubscribed');
+      }
+    }
 
     return $message ?? NULL;
   }
 
   private function mapPhoneFromRemoteToLocal(RemotePerson $r, LocalPerson $l): ?string {
-    $phoneNumberRemote = $r->phoneNumber->get();
-    $phoneNumberLocal = $l->smsPhonePhone->get();
-    $phoneNumberRemoteNorm = $this->normalizePhoneNumber($phoneNumberRemote);
-    $phoneNumberLocalNorm = $this->normalizePhoneNumber($phoneNumberLocal);
+    $remoteNumberNorm = $this->normalizePhoneNumber($r->phoneNumber->get());
+    $localNumberNorm = $this->normalizePhoneNumber($l->smsPhonePhone->get());
 
-    if ('subscribed' === $r->phoneStatus->get() && !empty($phoneNumberRemoteNorm)) {
-      if ($phoneNumberRemoteNorm !== $phoneNumberLocalNorm) {
-        $l->smsPhonePhone->set($phoneNumberRemoteNorm);
+    if ('subscribed' === $r->phoneStatus->get() && !empty($remoteNumberNorm)) {
+      if ($remoteNumberNorm !== $localNumberNorm) {
+        $l->smsPhonePhone->set($remoteNumberNorm);
       }
       $l->smsPhoneIsPrimary->set(TRUE);
       if ($l->nonSmsMobilePhoneIsPrimary->get()) {
         $l->nonSmsMobilePhoneIsPrimary->set(FALSE);
       }
-      if ($phoneNumberRemoteNorm === $this->normalizePhoneNumber($l->nonSmsMobilePhonePhoneNumeric->get())) {
+      if ($remoteNumberNorm === $this->normalizePhoneNumber($l->nonSmsMobilePhonePhoneNumeric->get())) {
         $l->nonSmsMobilePhonePhone->set(NULL);
       }
     }
     else {
       $l->smsPhonePhone->set(NULL);
-      if (!empty($phoneNumberRemoteNorm)) {
-        $l->nonSmsMobilePhonePhone->set($phoneNumberRemoteNorm);
+      if (!empty($remoteNumberNorm)) {
+        $l->nonSmsMobilePhonePhone->set($remoteNumberNorm);
         $l->nonSmsMobilePhoneIsPrimary->set(TRUE);
       }
     }
+
     return NULL;
   }
 
@@ -172,6 +182,7 @@ class Reconciliation2022May001 {
         '/\\bBlvd\\b\\.?/i',
         '/\\bCir\\b\\.?/i',
         '/\\bCt\\b\\.?/i',
+        '/\\bDr\\b\\.?/i',
         '/\\bHwy\\b\\.?/i',
         '/\\bLn\\b\\.?/i',
         '/\\bRd\\b\\.?/i',
@@ -185,6 +196,7 @@ class Reconciliation2022May001 {
         'Boulevard',
         'Circle',
         'Court',
+        'Drive',
         'Highway',
         'Lane',
         'Road',
@@ -193,7 +205,9 @@ class Reconciliation2022May001 {
       ];
       return strtolower(preg_replace($patterns, $replacements, $subject));
     };
-    return $norm($l->addressStreetAddress->get()) === $norm($r->postalStreet->get());
+    $normLocal = $norm($l->addressStreetAddress->get());
+    $normRemote = $norm($r->postalStreet->get());
+    return $normLocal === $normRemote;
   }
 
 }
