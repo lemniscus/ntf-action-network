@@ -81,6 +81,79 @@ class CRM_OSDI_ActionNetwork_ReconcilerTest extends \PHPUnit\Framework\TestCase 
     return new Civi\Osdi\ActionNetwork\Mapper\Reconciliation2022May001($system);
   }
 
+  public function testUnchangedRecord() {
+    $localPerson = new \Civi\Osdi\LocalObject\Person\N2F();
+    $localPerson->createdDate->load('2019-02-07 13:00:52');
+    $localPerson->modifiedDate->load('2022-01-01 01:24:10');
+    $localPerson->firstName->load('Punam');
+    $localPerson->lastName->load('Shepherd');
+    $localPerson->isOptOut->load(FALSE);
+    $localPerson->doNotEmail->load(FALSE);
+    $localPerson->doNotSms->load(FALSE);
+    $localPerson->individualLanguagesSpoken->load([]);
+    $localPerson->isDeleted->load(FALSE);
+    $localPerson->emailId->load(42284);
+    $localPerson->emailEmail->load('shep@me.comcastbiz.net');
+    $localPerson->nonSmsMobilePhoneId->load(NULL);
+    $localPerson->nonSmsMobilePhoneIsPrimary->load(NULL);
+    $localPerson->nonSmsMobilePhonePhone->load(NULL);
+    $localPerson->nonSmsMobilePhonePhoneNumeric->load(NULL);
+    $localPerson->smsPhoneId->load(NULL);
+    $localPerson->smsPhoneIsPrimary->load(NULL);
+    $localPerson->smsPhonePhone->load(NULL);
+    $localPerson->smsPhonePhoneNumeric->load(NULL);
+    $localPerson->addressId->load(22802);
+    $localPerson->addressStreetAddress->load('1245 Dundees Rd');
+    $localPerson->addressCity->load('Greeley');
+    $localPerson->addressStateProvinceId->load(1005);
+    $localPerson->addressPostalCode->load('80631');
+    $localPerson->addressCountryId->load(1228);
+    $localPerson->save();
+
+    $resource = \Jsor\HalClient\HalResource::fromArray(self::$system->getClient(), [
+      "identifiers" => [
+        "action_network:notarealid",
+      ],
+      "create_date" => "2016-03-12T20:45:39Z",
+      "modified_date" => "2022-05-16T01:19:45Z",
+      "given_name" => "Punam",
+      "family_name" => "Shepherd",
+      "email_addresses" => [
+        [
+          "address" => "shep@me.comcastbiz.net",
+          "status" => "subscribed",
+        ],
+      ],
+      "phone_numbers" => [
+        [
+          "number" => "19705551212",
+          "status" => "subscribed",
+        ],
+      ],
+      "postal_addresses" => [
+        [
+          "address_lines" => [
+            "1245 Dundee Road",
+          ],
+          "locality" => "Greely",
+          "region" => "CO",
+          "postal_code" => "80631",
+          "country" => "US",
+        ],
+      ],
+      "languages_spoken" => [
+        "en",
+      ],
+      "custom_fields" => [],
+    ]);
+    $remotePerson = new \Civi\Osdi\ActionNetwork\Object\Person(self::$system, $resource);
+
+    $pair = self::$mapper->reconcile($localPerson, $remotePerson);
+
+    self::assertNotEquals(TRUE, $localPerson->doNotEmail->get());
+
+  }
+
   public function testReconcileCsvInputAndOutput() {
     $augustusLocal = new LocalPerson();
     $augustusLocal->firstName->set('Augustus');
