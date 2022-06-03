@@ -78,10 +78,10 @@ class CRM_OSDI_ActionNetwork_ReconcilerTest extends \PHPUnit\Framework\TestCase 
   }
 
   public static function createMapper(\Civi\Osdi\ActionNetwork\RemoteSystem $system) {
-    return new Civi\Osdi\ActionNetwork\Mapper\NineToFive2022May($system);
+    return new Civi\Osdi\ActionNetwork\Mapper\Reconciliation2022May001($system);
   }
 
-  public function testReconcile() {
+  public function testReconcileCsvInputAndOutput() {
     $augustusLocal = new LocalPerson();
     $augustusLocal->firstName->set('Augustus');
     $augustusLocal->lastName->set('Wright');
@@ -152,7 +152,6 @@ class CRM_OSDI_ActionNetwork_ReconcilerTest extends \PHPUnit\Framework\TestCase 
     $xavierLocal = new LocalPerson();
     $xavierLocal->firstName->set('Xavier');
     $xavierLocal->lastName->set('Zapata');
-    $xavierLocal->doNotEmail->set(TRUE);
     $xavierLocal->individualLanguagesSpoken->set(['eng', 'spa']);
     $xavierLocal->emailEmail->set('xyz@zoro.net');
     $xavierLocal->addressStateProvinceId->set('1025');

@@ -83,8 +83,12 @@ class N2FReconciliationRunner {
 
       $localPerson = (new LocalPerson($emailRecord['contact_id']))->loadOnce();
 
-      if ('noemail@' === substr($localPerson->emailEmail->get(), 0, 8)) {
-        if (empty($localPerson->smsPhonePhone->get())) {
+      $doNotEmail = $localPerson->doNotEmail->get();
+      $emailIsDummy = 'noemail@' === substr($localPerson->emailEmail->get(), 0, 8);
+      $doNotSms = $localPerson->doNotSms->get();
+
+      if ($doNotEmail || $emailIsDummy) {
+        if ($doNotSms || empty($localPerson->smsPhonePhone->get())) {
           continue;
         }
       }
@@ -375,6 +379,7 @@ class N2FReconciliationRunner {
       ->addGroupBy('email')
       ->addWhere('is_primary', '=', TRUE)
       ->addWhere('contact.is_deleted', '=', FALSE)
+      ->addWhere('contact.is_opt_out', '=', FALSE)
       ->addWhere('contact.contact_type', '=', 'Individual');
 
     if ($email) {
