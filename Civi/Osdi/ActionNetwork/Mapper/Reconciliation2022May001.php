@@ -53,7 +53,8 @@ class Reconciliation2022May001 {
       $r->languageSpoken->set($languageMap[$language] ?? '');
     }
 
-    $noEmailsLocal = $l->isOptOut->get() || $l->doNotEmail->get();
+    $emailIsDummy = 'noemail@' === substr($l->emailEmail->get(), 0, 8);
+    $noEmailsLocal = $l->isOptOut->get() || $l->doNotEmail->get() || $emailIsDummy;
     $noEmailsRemote = ('unsubscribed' === $r->emailStatus->get());
 
     $r->emailStatus->set($noEmailsLocal ? 'unsubscribed' : $r->emailStatus->get());
