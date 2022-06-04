@@ -32,11 +32,14 @@ class N2FReconciliationRunner {
    */
   private $statusFile;
 
-  public function __construct() {
-    $osdiClientExtDir = dirname(\CRM_Extension_System::singleton()
-      ->getMapper()->keyToPath('osdi-client'));
-    require_once "$osdiClientExtDir/tests/phpunit/CRM/OSDI/ActionNetwork/TestUtils.php";
-    $this->system = \CRM_OSDI_ActionNetwork_TestUtils::createRemoteSystem();
+  public function __construct($system = NULL) {
+    if (is_null($system)) {
+      $osdiClientExtDir = dirname(\CRM_Extension_System::singleton()
+        ->getMapper()->keyToPath('osdi-client'));
+      require_once "$osdiClientExtDir/tests/phpunit/CRM/OSDI/ActionNetwork/TestUtils.php";
+      $system = \CRM_OSDI_ActionNetwork_TestUtils::createRemoteSystem();
+    }
+    $this->system = $system;
   }
 
   public function setInput(string $path) {
