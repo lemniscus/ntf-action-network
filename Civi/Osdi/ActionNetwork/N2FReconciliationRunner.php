@@ -86,6 +86,10 @@ class N2FReconciliationRunner {
 
       $localPerson = (new LocalPerson($emailRecord['contact_id']))->loadOnce();
 
+      if ($localPerson->isOptOut->get()) {
+        continue;
+      }
+
       $doNotEmail = $localPerson->doNotEmail->get();
       $emailOnHold = $localPerson->emailOnHold->get();
       $emailIsDummy = 'noemail@' === substr($localPerson->emailEmail->get(), 0, 8);
