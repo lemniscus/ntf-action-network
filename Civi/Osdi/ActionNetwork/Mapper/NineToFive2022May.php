@@ -29,14 +29,14 @@ class NineToFive2022May {
       $remotePerson->languageSpoken->set($languageMap[$language] ?? '');
     }
 
-    $noEmails = $l->isOptOut->get() || $l->doNotEmail->get();
-    $remotePerson->emailAddress->set($l->emailEmail->get());
+    $localEmailAddress = $l->emailEmail->get();
+    $emailIsDummy = 'noemail@' === substr($localEmailAddress, 0, 8);
+    $noEmails = $l->isOptOut->get() || $l->doNotEmail->get()
+      || $l->emailOnHold->get() || $emailIsDummy;
+    $remotePerson->emailAddress->set($localEmailAddress);
     $remotePerson->emailStatus->set($noEmails ? 'unsubscribed' : 'subscribed');
 
-    $phoneNumber = $l->smsPhonePhoneNumeric->get();
-    $noSms = $l->isOptOut->get() || $l->doNotSms->get() || empty($phoneNumber);
-    $remotePerson->phoneNumber->set($phoneNumber);
-    $remotePerson->phoneStatus->set($noSms ? 'unsubscribed' : 'subscribed');
+    $this->mapPhoneFromLocalToRemote($l, $remotePerson);
 
     if (empty($zipForActNet = $l->addressPostalCode->get())) {
       $dummyZip = $this->addRealZipOrReturnDummy($l);
@@ -132,6 +132,76 @@ class NineToFive2022May {
       $stateId = NULL;
     }
     return [$stateId, $countryId];
+  }
+
+  public function mapPhoneFromLocalToRemote(LocalPerson $l, RemotePerson $r): ?string {
+    $remoteNumberNorm = $this->normalizePhoneNumber($r->phoneNumber->get());
+    $localNumberNorm = $this->normalizePhoneNumber($l->smsPhonePhone->get());
+
+    if (empty($localNumberNorm) && empty($remoteNumberNorm)) {
+      return NULL;
+    }
+
+    if (!empty($localNumberNorm) && ($localNumberNorm !== $remoteNumberNorm)) {
+      $r->phoneNumber->set($localNumberNorm);
+      $r->phoneStatus->set('subscribed');
+      $message = 'changing phone on a.n. can have unexpected results';
+    }
+
+    $noSmsLocal = $l->isOptOut->get() || $l->doNotSms->get() || empty($localNumberNorm);
+    if ($noSmsLocal && !empty($remoteNumberNorm)) {
+      if ($r->phoneStatus->get() !== 'bouncing') {
+        $r->phoneStatus->set('unsubscribed');
+      }
+    }
+
+    return $message ?? NULL;
+  }
+
+  private function mapPhoneRemoteToLocalSubscribed(string $remoteNumberNorm, string $localNumberNorm, LocalPerson $l): void {
+    if ($remoteNumberNorm !== $localNumberNorm) {
+      $l->smsPhonePhone->set($remoteNumberNorm);
+    }
+    $l->smsPhoneIsPrimary->set(TRUE);
+    if ($l->nonSmsMobilePhoneIsPrimary->get()) {
+      $l->nonSmsMobilePhoneIsPrimary->set(FALSE);
+    }
+    if ($remoteNumberNorm === $this->normalizePhoneNumber($l->nonSmsMobilePhonePhoneNumeric->get())) {
+      $l->nonSmsMobilePhonePhone->set(NULL);
+    }
+  }
+
+  private function mapPhoneRemoteToLocalUnsubscribed(LocalPerson $l, string $remoteNumberNorm): void {
+    $l->smsPhonePhone->set(NULL);
+    if (!empty($remoteNumberNorm)) {
+      $l->nonSmsMobilePhonePhone->set($remoteNumberNorm);
+      $l->nonSmsMobilePhoneIsPrimary->set(TRUE);
+      $noSmsLocal = $l->isOptOut->get() || $l->doNotSms->get();
+      if (!$noSmsLocal) {
+        $l->doNotSms->set(TRUE);
+      }
+    }
+  }
+
+  public function mapPhoneFromRemoteToLocal(RemotePerson $r, LocalPerson $l): ?string {
+    $remoteNumberNorm = $this->normalizePhoneNumber($r->phoneNumber->get());
+    $localNumberNorm = $this->normalizePhoneNumber($l->smsPhonePhone->get());
+
+    if ('subscribed' === $r->phoneStatus->get() && !empty($remoteNumberNorm)) {
+      $this->mapPhoneRemoteToLocalSubscribed($remoteNumberNorm, $localNumberNorm, $l);
+    }
+    else {
+      $this->mapPhoneRemoteToLocalUnsubscribed($l, $remoteNumberNorm);
+    }
+
+    return NULL;
+  }
+
+  private function normalizePhoneNumber(?string $phoneNumber = ''): string {
+    $phoneNumber = preg_replace('/[^0-9]/', '', $phoneNumber);
+    $phoneNumber = preg_replace('/^1(\d{10})$/', '$1', $phoneNumber);
+    $phoneNumber = preg_replace('/^(\d{3})(\d{3})(\d{4})$/', '($1) $2-$3', $phoneNumber);
+    return $phoneNumber;
   }
 
   public function mapLanguageFromActionNetwork(RemotePerson $remotePerson,

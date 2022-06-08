@@ -87,10 +87,11 @@ class N2FReconciliationRunner {
       $localPerson = (new LocalPerson($emailRecord['contact_id']))->loadOnce();
 
       $doNotEmail = $localPerson->doNotEmail->get();
+      $emailOnHold = $localPerson->emailOnHold->get();
       $emailIsDummy = 'noemail@' === substr($localPerson->emailEmail->get(), 0, 8);
       $doNotSms = $localPerson->doNotSms->get();
 
-      if ($doNotEmail || $emailIsDummy) {
+      if ($doNotEmail || $emailIsDummy || $emailOnHold) {
         if ($doNotSms || empty($localPerson->smsPhonePhone->get())) {
           continue;
         }

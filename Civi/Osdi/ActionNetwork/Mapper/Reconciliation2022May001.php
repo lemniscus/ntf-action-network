@@ -54,29 +54,21 @@ class Reconciliation2022May001 {
     }
 
     $emailIsDummy = 'noemail@' === substr($l->emailEmail->get(), 0, 8);
-    $noEmailsLocal = $l->isOptOut->get() || $l->doNotEmail->get() || $emailIsDummy;
+    $noEmailsLocal = $l->isOptOut->get() || $l->doNotEmail->get()
+      || $l->emailOnHold->get() || $emailIsDummy;
     $noEmailsRemote = ('unsubscribed' === $r->emailStatus->get());
 
     $r->emailStatus->set($noEmailsLocal ? 'unsubscribed' : $r->emailStatus->get());
     $l->doNotEmail->set($noEmailsRemote ? TRUE : $l->doNotEmail->get());
 
     if ($localIsNewer) {
-      $message = $this->mapPhoneFromLocalToRemote($l, $r);
+      $message = $this->normalMapper->mapPhoneFromLocalToRemote($l, $r);
     }
     else {
-      $message = $this->mapPhoneFromRemoteToLocal($r, $localPerson);
+      $message = $this->normalMapper->mapPhoneFromRemoteToLocal($r, $localPerson);
     }
     if ($message) {
       $messages[] = $message;
-    }
-
-    $noSmsRemote = $r->phoneStatus->get() === 'unsubscribed' && !empty($r->phoneNumber->get());
-    $noSmsLocal = $l->isOptOut->get() || $l->doNotSms->get();
-    if ($noSmsRemote && !$noSmsLocal) {
-      $l->doNotSms->set(TRUE);
-    }
-    if ($noSmsLocal && !empty($r->phoneNumber->get()) && $r->phoneStatus->get() !== 'bouncing') {
-      $r->phoneStatus->set('unsubscribed');
     }
 
     $streetAddressesMatch = $this->streetAddressesMatch($l, $r);
@@ -115,63 +107,6 @@ class Reconciliation2022May001 {
     }
 
     return new LocalRemotePair($l, $r, FALSE, implode('; ', $messages));
-  }
-
-  private function mapPhoneFromLocalToRemote(LocalPerson $l, RemotePerson $r): ?string {
-    $remoteNumberNorm = $this->normalizePhoneNumber($r->phoneNumber->get());
-    $localNumberNorm = $this->normalizePhoneNumber($l->smsPhonePhone->get());
-
-    if (empty($localNumberNorm) && empty($remoteNumberNorm)) {
-      return NULL;
-    }
-
-    if (!empty($localNumberNorm) && ($localNumberNorm !== $remoteNumberNorm)) {
-      $r->phoneNumber->set($localNumberNorm);
-      $r->phoneStatus->set('subscribed');
-      $message = 'changing phone on a.n. can have unexpected results';
-    }
-
-    if (empty($localNumberNorm) && !empty($remoteNumberNorm)) {
-      if ($r->phoneStatus->get() !== 'bouncing') {
-        $r->phoneStatus->set('unsubscribed');
-      }
-    }
-
-    return $message ?? NULL;
-  }
-
-  private function mapPhoneFromRemoteToLocal(RemotePerson $r, LocalPerson $l): ?string {
-    $remoteNumberNorm = $this->normalizePhoneNumber($r->phoneNumber->get());
-    $localNumberNorm = $this->normalizePhoneNumber($l->smsPhonePhone->get());
-
-    if ('subscribed' === $r->phoneStatus->get() && !empty($remoteNumberNorm)) {
-      if ($remoteNumberNorm !== $localNumberNorm) {
-        $l->smsPhonePhone->set($remoteNumberNorm);
-      }
-      $l->smsPhoneIsPrimary->set(TRUE);
-      if ($l->nonSmsMobilePhoneIsPrimary->get()) {
-        $l->nonSmsMobilePhoneIsPrimary->set(FALSE);
-      }
-      if ($remoteNumberNorm === $this->normalizePhoneNumber($l->nonSmsMobilePhonePhoneNumeric->get())) {
-        $l->nonSmsMobilePhonePhone->set(NULL);
-      }
-    }
-    else {
-      $l->smsPhonePhone->set(NULL);
-      if (!empty($remoteNumberNorm)) {
-        $l->nonSmsMobilePhonePhone->set($remoteNumberNorm);
-        $l->nonSmsMobilePhoneIsPrimary->set(TRUE);
-      }
-    }
-
-    return NULL;
-  }
-
-  private function normalizePhoneNumber(?string $phoneNumber = ''): string {
-    $phoneNumber = preg_replace('/[^0-9]/', '', $phoneNumber);
-    $phoneNumber = preg_replace('/^1(\d{10})$/', '$1', $phoneNumber);
-    $phoneNumber = preg_replace('/^(\d{3})(\d{3})(\d{4})$/', '($1) $2-$3', $phoneNumber);
-    return $phoneNumber;
   }
 
   private function streetAddressesMatch(LocalPerson $l, RemotePerson $r): bool {

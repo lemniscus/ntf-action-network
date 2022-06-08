@@ -9,6 +9,7 @@ use Civi\Osdi\LocalObject\Person;
 
 class N2F extends Person {
 
+  public Field $emailOnHold;
   public Field $individualLanguagesSpoken;
   public Field $nonSmsMobilePhoneId;
   public Field $nonSmsMobilePhoneIsPrimary;
@@ -32,6 +33,7 @@ class N2F extends Person {
     'isDeleted' => ['select' => 'is_deleted'],
     'emailId' => ['select' => 'email.id'],
     'emailEmail' => ['select' => 'email.email'],
+    'emailOnHold' => ['select' => 'email.on_hold'],
     'nonSmsMobilePhoneId' => ['select' => 'non_sms_mobile_phone.id'],
     'nonSmsMobilePhoneIsPrimary' => ['select' => 'non_sms_mobile_phone.is_primary'],
     'nonSmsMobilePhonePhone' => ['select' => 'non_sms_mobile_phone.phone'],
@@ -78,17 +80,13 @@ class N2F extends Person {
   ];
 
   protected function saveCoreContactFields() {
-    $cid = Contact::save(FALSE)->addRecord([
-      'contact_type' => 'Individual',
-      'id' => $this->getId(),
-      'first_name' => $this->firstName->get(),
-      'last_name' => $this->lastName->get(),
-      'is_opt_out' => $this->isOptOut->get(),
-      'do_not_email' => $this->doNotEmail->get(),
-      'do_not_sms' => $this->doNotSms->get(),
-      'Individual.Languages_spoken' => $this->individualLanguagesSpoken->get(),
-    ])->execute()->first()['id'];
-    return $cid;
+    $record = $this->getSaveableFieldContents('')
+      + $this->getSaveableFieldContents('Individual', TRUE);
+    $record['contact_type'] = 'Individual';
+    $record['id'] = $this->getId();
+
+    return Contact::save(FALSE)
+      ->addRecord($record)->execute()->first()['id'];
   }
 
   protected function savePhone($cid): void {

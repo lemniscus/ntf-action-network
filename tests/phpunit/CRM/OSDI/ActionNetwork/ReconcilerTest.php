@@ -154,6 +154,36 @@ class CRM_OSDI_ActionNetwork_ReconcilerTest extends \PHPUnit\Framework\TestCase 
 
   }
 
+  public function testOnHoldEmailIsUnsubscribed() {
+    $localPerson = new \Civi\Osdi\LocalObject\Person\N2F();
+    $localPerson->createdDate->load('2019-02-07 13:00:52');
+    $localPerson->modifiedDate->load('2022-01-01 01:24:10');
+    $localPerson->firstName->load('Phil');
+    $localPerson->lastName->load('Lattery ');
+    $localPerson->isOptOut->load(FALSE);
+    $localPerson->doNotEmail->load(FALSE);
+    $localPerson->doNotSms->load(FALSE);
+    $localPerson->emailOnHold->load(TRUE);
+    $localPerson->isDeleted->load(FALSE);
+    $localPerson->emailEmail->load('shep@me.comcastbiz.net');
+    $localPerson->save();
+
+    $resource = \Jsor\HalClient\HalResource::fromArray(self::$system->getClient(), [
+      "identifiers" => [
+        "action_network:notarealid",
+      ],
+      "create_date" => "2016-03-12T20:45:39Z",
+      "modified_date" => "2022-05-16T01:19:45Z",
+    ]);
+    $remotePerson = new \Civi\Osdi\ActionNetwork\Object\Person(self::$system, $resource);
+
+    $pair = self::$mapper->reconcile($localPerson, $remotePerson);
+    $resultRemotePerson = $pair->getRemoteObject();
+
+    self::assertEquals('unsubscribed', $resultRemotePerson->emailStatus->get());
+
+  }
+
   public function testReconcileCsvInputAndOutput() {
     $augustusLocal = new LocalPerson();
     $augustusLocal->firstName->set('Augustus');
@@ -230,6 +260,13 @@ class CRM_OSDI_ActionNetwork_ReconcilerTest extends \PHPUnit\Framework\TestCase 
     $xavierLocal->addressStateProvinceId->set('1025');
     $xavierLocal->save();
 
+    $zeroLocal = new LocalPerson();
+    $zeroLocal->firstName->set('Zero');
+    $zeroLocal->lastName->set('Mostel');
+    $zeroLocal->emailEmail->set('zero@onetwothree.com');
+    $zeroLocal->emailOnHold->set(TRUE);
+    $zeroLocal->save();
+
     \CRM_OSDI_ActionNetwork_Fixture::setUpGeocoding();
     $main = new \Civi\Osdi\ActionNetwork\N2FReconciliationRunner();
     $main->setInput(__DIR__ . '/reconciliationTestCSVInput.csv');
@@ -246,6 +283,8 @@ class CRM_OSDI_ActionNetwork_ReconcilerTest extends \PHPUnit\Framework\TestCase 
     foreach ($actualCsv as $i => $row) {
       $actualRecords[$i] = $row;
     }
+
+    self::assertEquals($expectedCsv->count(), $actualCsv->count());
 
     foreach ($expectedRecords as $i => $expectedRow) {
       foreach ($expectedRow as $fieldName => $expectedValue) {
