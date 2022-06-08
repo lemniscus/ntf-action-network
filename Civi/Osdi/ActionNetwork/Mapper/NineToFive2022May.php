@@ -74,8 +74,12 @@ class NineToFive2022May {
 
     if ($rpEmail = $remotePerson->emailAddress->get()) {
       $localPerson->emailEmail->set($rpEmail);
-      if ('unsubscribed' === $remotePerson->emailStatus->get()) {
+      $remoteEmailStatus = $remotePerson->emailStatus->get();
+      if ('unsubscribed' === $remoteEmailStatus) {
         $localPerson->doNotEmail->set(TRUE);
+      }
+      elseif ('subscribed' === $remoteEmailStatus) {
+        $localPerson->doNotEmail->set(FALSE);
       }
     }
 
