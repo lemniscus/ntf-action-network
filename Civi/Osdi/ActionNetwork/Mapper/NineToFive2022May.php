@@ -30,11 +30,15 @@ class NineToFive2022May {
     }
 
     $localEmailAddress = $l->emailEmail->get();
-    $emailIsDummy = 'noemail@' === substr($localEmailAddress, 0, 8);
-    $noEmails = $l->isOptOut->get() || $l->doNotEmail->get()
-      || $l->emailOnHold->get() || $emailIsDummy;
     $remotePerson->emailAddress->set($localEmailAddress);
-    $remotePerson->emailStatus->set($noEmails ? 'unsubscribed' : 'subscribed');
+
+    $emailIsDummy = 'noemail@' === substr($localEmailAddress, 0, 8);
+    $noEmailsLocal = $l->isOptOut->get() || $l->doNotEmail->get()
+      || $l->emailOnHold->get() || $emailIsDummy;
+    $noEmailsRemote = 'subscribed' !== $remotePerson->emailStatus->get();
+    if (empty($remotePerson->emailStatus->get()) || ($noEmailsLocal !== $noEmailsRemote)) {
+      $remotePerson->emailStatus->set($noEmailsLocal ? 'unsubscribed' : 'subscribed');
+    }
 
     $this->mapPhoneFromLocalToRemote($l, $remotePerson);
 
@@ -75,11 +79,11 @@ class NineToFive2022May {
     if ($rpEmail = $remotePerson->emailAddress->get()) {
       $localPerson->emailEmail->set($rpEmail);
       $remoteEmailStatus = $remotePerson->emailStatus->get();
-      if ('unsubscribed' === $remoteEmailStatus) {
-        $localPerson->doNotEmail->set(TRUE);
-      }
-      elseif ('subscribed' === $remoteEmailStatus) {
+      if ('subscribed' === $remoteEmailStatus) {
         $localPerson->doNotEmail->set(FALSE);
+      }
+      else {
+        $localPerson->doNotEmail->set(TRUE);
       }
     }
 

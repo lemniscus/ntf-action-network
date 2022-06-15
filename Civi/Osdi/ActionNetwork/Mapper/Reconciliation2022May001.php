@@ -56,7 +56,7 @@ class Reconciliation2022May001 {
     $emailIsDummy = 'noemail@' === substr($l->emailEmail->get(), 0, 8);
     $noEmailsLocal = $l->isOptOut->get() || $l->doNotEmail->get()
       || $l->emailOnHold->get() || $emailIsDummy;
-    $noEmailsRemote = ('unsubscribed' === $r->emailStatus->get());
+    $noEmailsRemote = ('subscribed' !== $r->emailStatus->get());
 
     $r->emailStatus->set($noEmailsLocal ? 'unsubscribed' : $r->emailStatus->get());
     $l->doNotEmail->set($noEmailsRemote ? TRUE : $l->doNotEmail->get());
