@@ -67,60 +67,8 @@ class N2FReconciliationRunner {
     $this->in->setHeaderOffset(0);
 
     $this->processInputCsv($emptyOutRow, $columnOffsets);
-    rewind($this->statusFile);
-    $csvInputFinalStatus = fgets($this->statusFile) . "\n";
 
-    $civiEmails = $this->civiApi4EmailGet();
-    $totalEmails = $civiEmails->count();
-
-    foreach ($civiEmails as $i => $emailRecord) {
-      if ($i % 100 === 0) {
-        rewind($this->statusFile);
-        fwrite($this->statusFile, $csvInputFinalStatus . ($i + 1) .
-          " of $totalEmails Civi records processed");
-      }
-
-      if (in_array($emailRecord['contact_id'], $this->processedCiviIds)) {
-        continue;
-      }
-
-      $localPerson = (new LocalPerson($emailRecord['contact_id']))->loadOnce();
-
-      if ($localPerson->isOptOut->get()) {
-        continue;
-      }
-
-      $doNotEmail = $localPerson->doNotEmail->get();
-      $emailOnHold = $localPerson->emailOnHold->get();
-      $emailIsDummy = 'noemail@' === substr($localPerson->emailEmail->get(), 0, 8);
-      $doNotSms = $localPerson->doNotSms->get();
-
-      if ($doNotEmail || $emailIsDummy || $emailOnHold) {
-        if ($doNotSms || empty($localPerson->smsPhonePhone->get())) {
-          continue;
-        }
-      }
-
-      $outRow = $emptyOutRow;
-      $this->processCiviBefore($localPerson, $outRow);
-
-      if ($emailRecord['count_contact_id'] > 1) {
-        $outRow[$columnOffsets['match status']] = 'match error';
-        $outRow[$columnOffsets['message']] = 'email is not unique in Civi';
-        $this->out->insertOne($outRow);
-        continue;
-      }
-
-      $outRow[$columnOffsets['match status']] = 'create new AN';
-      $remotePerson = $this->mapper->mapLocalToRemote($localPerson);
-      $this->processANAfter($remotePerson, $outRow);
-      $this->processCiviAfter($localPerson, $outRow);
-      $this->out->insertOne($outRow);
-    }
-
-    rewind($this->statusFile);
-    fwrite($this->statusFile, $csvInputFinalStatus . ($i + 1) .
-      " of $totalEmails Civi records processed");
+    $this->processUnmatchedCiviEmails($emptyOutRow, $columnOffsets);
     fclose($this->statusFile);
   }
 
@@ -182,11 +130,68 @@ class N2FReconciliationRunner {
       $this->processANAfter($remotePerson, $outRow);
       $this->processCiviAfter($localPerson, $outRow);
 
-      $this->out->insertOne($outRow);
+      $this->saveRecordsAndWriteToCsv($remotePerson, $localPerson, $outRow);
     }
 
     rewind($this->statusFile);
     fwrite($this->statusFile, "$i CSV rows processed");
+  }
+
+  private function processUnmatchedCiviEmails(array $emptyOutRow, array $columnOffsets): void {
+    rewind($this->statusFile);
+    $csvInputFinalStatus = fgets($this->statusFile) . "\n";
+
+    $civiEmails = $this->civiApi4EmailGet();
+    $totalEmails = $civiEmails->count();
+
+    foreach ($civiEmails as $i => $emailRecord) {
+      if ($i % 100 === 0) {
+        rewind($this->statusFile);
+        fwrite($this->statusFile, $csvInputFinalStatus . ($i + 1) .
+          " of $totalEmails Civi records processed");
+      }
+
+      if (in_array($emailRecord['contact_id'], $this->processedCiviIds)) {
+        continue;
+      }
+
+      $localPerson = (new LocalPerson($emailRecord['contact_id']))->loadOnce();
+
+      if ($localPerson->isOptOut->get()) {
+        continue;
+      }
+
+      $doNotEmail = $localPerson->doNotEmail->get();
+      $emailOnHold = $localPerson->emailOnHold->get();
+      $emailIsDummy = 'noemail@' === substr($localPerson->emailEmail->get(), 0, 8);
+      $doNotSms = $localPerson->doNotSms->get();
+
+      if ($doNotEmail || $emailIsDummy || $emailOnHold) {
+        if ($doNotSms || empty($localPerson->smsPhonePhone->get())) {
+          continue;
+        }
+      }
+
+      $outRow = $emptyOutRow;
+      $this->processCiviBefore($localPerson, $outRow);
+
+      if ($emailRecord['count_contact_id'] > 1) {
+        $outRow[$columnOffsets['match status']] = 'match error';
+        $outRow[$columnOffsets['message']] = 'email is not unique in Civi';
+        $this->out->insertOne($outRow);
+        continue;
+      }
+
+      $outRow[$columnOffsets['match status']] = 'create new AN';
+      $remotePerson = $this->mapper->mapLocalToRemote($localPerson);
+      $this->processANAfter($remotePerson, $outRow);
+      $this->processCiviAfter($localPerson, $outRow);
+      $this->saveRecordsAndWriteToCsv($remotePerson, $localPerson, $outRow);
+    }
+
+    rewind($this->statusFile);
+    fwrite($this->statusFile, $csvInputFinalStatus . ($i + 1) .
+      " of $totalEmails Civi records processed");
   }
 
   private function processANBefore($actNetRecord, array &$outRow): RemotePerson {
@@ -257,7 +262,6 @@ class N2FReconciliationRunner {
 
     if ($message = $pair->getMessage()) {
       $outRow[$columnOffsets['message']] = $message;
-      $outRow[$columnOffsets['may need review']] = 'yes';
     }
 
     $outRow[$columnOffsets['update AN']] = $remotePerson->isAltered() ? 'yes' : 'no';
@@ -270,7 +274,7 @@ class N2FReconciliationRunner {
       'message',
       'update AN',
       'update Civi',
-      'may need review',
+      'sync status',
     ];
 
     $beforeAfterFields = [
@@ -395,6 +399,68 @@ class N2FReconciliationRunner {
     }
 
     return $emailGet->execute();
+  }
+
+  private function logError($message, $context) {
+    static $levelMap;
+
+    if (!isset($levelMap)) {
+      $levelMap = \Civi::log()->getMap();
+    }
+
+    if (!empty($context)) {
+      if (isset($context['exception'])) {
+        $context['exception'] = \CRM_Core_Error::formatTextException($context['exception']);
+      }
+      $message .= "\n" . print_r($context, 1);
+    }
+    \CRM_Core_Error::debug_log_message($message, FALSE, 'osdi', $levelMap[\Psr\Log\LogLevel::ERROR]);
+  }
+
+  private function saveRecordsAndWriteToCsv(
+    RemotePerson $remotePerson,
+    LocalPerson $localPerson,
+    array $outRow): array {
+    $errorMessage = $errorContext = NULL;
+
+    if ($remotePerson->isAltered()) {
+      try {
+        $actNetResult = $this->system->trySave($remotePerson);
+        if ($actNetResult->isError()) {
+          $errorMessage = $actNetResult->getStatus() . ': ' . $actNetResult->getMessage();
+          $errorContext = $actNetResult->getContext();
+        }
+      }
+      catch (\Throwable $e) {
+        $errorMessage = $e->getMessage();
+        $errorContext = $e->getTrace();
+      }
+    }
+
+    if ($localPerson->isAltered() && is_null($errorMessage) && is_null($errorContext)) {
+      try {
+        $civiRecordIsNew = empty($localPerson->getId());
+        $localPerson->save();
+        if ($civiRecordIsNew) {
+          $this->processedCiviIds[] = $localPerson->getId();
+        }
+      }
+      catch (\Throwable $e) {
+        $errorMessage = $e->getMessage();
+        $errorContext = $e->getTrace();
+      }
+    }
+
+    if (is_null($errorMessage) && is_null($errorContext)) {
+      $outRow[$this->columnOffsets['sync status']] = 'success';
+    }
+    else {
+      $outRow[$this->columnOffsets['sync status']] = "error: $errorMessage";
+      $this->logError($errorMessage, $errorContext);
+    }
+
+    $this->out->insertOne($outRow);
+    return $outRow;
   }
 
 }
