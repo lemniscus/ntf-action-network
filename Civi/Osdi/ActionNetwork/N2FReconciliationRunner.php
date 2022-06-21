@@ -17,11 +17,13 @@ class N2FReconciliationRunner {
 
   private RemoteSystem $system;
 
-  private array $processedActNetIds;
+  private array $processedActNetIds = [];
 
-  private array $processedCiviIds;
+  private array $processedCiviIds = [];
 
   private array $columnOffsets;
+
+  private array $emptyOutRow;
 
   private AbstractCsv $out;
 
@@ -32,6 +34,10 @@ class N2FReconciliationRunner {
    */
   private $statusFile;
 
+  private bool $isFinishedProcessingCSVInput = FALSE;
+
+  private int $csvRowsPreviouslyProcessed = 0;
+
   public function __construct($system = NULL) {
     if (is_null($system)) {
       $osdiClientExtDir = dirname(\CRM_Extension_System::singleton()
@@ -40,6 +46,11 @@ class N2FReconciliationRunner {
       $system = \CRM_OSDI_ActionNetwork_TestUtils::createRemoteSystem();
     }
     $this->system = $system;
+    $this->mapper = new Reconciliation2022May001($this->system);
+    $header = $this->getHeader();
+    $this->columnOffsets = $columnOffsets = array_flip($header);
+    $this->emptyOutRow = array_fill(0, count($header), NULL);
+    $this->processedActNetIds = $this->processedCiviIds = [];
   }
 
   public function setInput(string $path) {
@@ -50,36 +61,74 @@ class N2FReconciliationRunner {
     $this->outputFilePath = $path;
   }
 
-  public function run() {
-    $this->mapper = new Reconciliation2022May001($this->system);
+  public function run($reset = FALSE) {
+    $this->setUpInputAndOutputFiles($reset);
 
-    $header = $this->getHeader();
-    $this->columnOffsets = $columnOffsets = array_flip($header);
-    $emptyOutRow = array_fill(0, count($header), NULL);
-    $this->processedActNetIds = $this->processedCiviIds = [];
+    if ($reset || !$this->isFinishedProcessingCSVInput) {
+      $this->processInputCsv();
+    }
 
-    $this->statusFile = fopen(sys_get_temp_dir() . '/n2f_reconciliation_status', 'w+');
+    $this->processUnmatchedCiviEmails();
 
-    $this->out = Writer::createFromPath($this->outputFilePath, 'w+');
-    $this->out->insertOne($header);
-
-    $this->in = Reader::createFromPath($this->inputFilePath);
-    $this->in->setHeaderOffset(0);
-
-    $this->processInputCsv($emptyOutRow, $columnOffsets);
-
-    $this->processUnmatchedCiviEmails($emptyOutRow, $columnOffsets);
     fclose($this->statusFile);
   }
 
-  private function processInputCsv(array $emptyOutRow, array $columnOffsets) {
+  private function setUpInputAndOutputFiles(bool $reset): void {
+    $this->statusFile = fopen(sys_get_temp_dir() . '/n2f_reconciliation_status', 'r+');
+
+    if ($reset) {
+      $this->out = Writer::createFromPath($this->outputFilePath, 'w+');
+      $this->out->insertOne($this->getHeader());
+    }
+    else {
+      $this->out = Writer::createFromPath($this->outputFilePath, 'a+');
+
+      $previouslyWritten = Reader::createFromPath($this->outputFilePath);
+      $previouslyWritten->setHeaderOffset(0);
+
+      foreach ($previouslyWritten as $i => $outRow) {
+        if ($beforeANId = $outRow['Before AN id']) {
+          $this->processedActNetIds[] = $beforeANId;
+        }
+        if ($beforeCiviId = $outRow['Before Civi id']) {
+          $this->processedCiviIds[] = $beforeCiviId;
+        }
+      }
+    }
+
+    $this->in = Reader::createFromPath($this->inputFilePath);
+    $this->in->setHeaderOffset(0);
+    if (!$reset) {
+      while ($line = fgets($this->statusFile)) {
+        if (!preg_match('/(\d+) of (\d+) CSV rows processed/', $line, $matches)) {
+          continue;
+        }
+        $prevTotalCSVCount = $matches[2];
+        if ((int) $prevTotalCSVCount !== $this->in->count()) {
+          throw new \Exception("Can't resume: CSV input has different number of rows than before");
+        }
+        $this->csvRowsPreviouslyProcessed = $matches[1];
+        $this->isFinishedProcessingCSVInput =
+          $this->csvRowsPreviouslyProcessed === $prevTotalCSVCount;
+      }
+    }
+  }
+
+  private function processInputCsv() {
+    $totalRows = $this->in->count();
+
     foreach ($this->in as $i => $actNetRecord) {
-      if (($i % 100) === 0) {
-        rewind($this->statusFile);
-        fwrite($this->statusFile, "$i CSV rows processed");
+      if ($i <= $this->csvRowsPreviouslyProcessed) {
+        continue;
       }
 
-      $outRow = $emptyOutRow;
+      if (($i % 100) === 0) {
+        ftruncate($this->statusFile, 0);
+        fwrite($this->statusFile, "$i of $totalRows CSV rows processed");
+      }
+
+      $outRow = $this->emptyOutRow;
+      $columnOffsets = $this->columnOffsets;
 
       $remotePerson = $this->processANBefore($actNetRecord, $outRow);
 
@@ -137,7 +186,7 @@ class N2FReconciliationRunner {
     fwrite($this->statusFile, "$i CSV rows processed");
   }
 
-  private function processUnmatchedCiviEmails(array $emptyOutRow, array $columnOffsets): void {
+  private function processUnmatchedCiviEmails(): void {
     rewind($this->statusFile);
     $csvInputFinalStatus = fgets($this->statusFile) . "\n";
 
@@ -146,7 +195,7 @@ class N2FReconciliationRunner {
 
     foreach ($civiEmails as $i => $emailRecord) {
       if ($i % 100 === 0) {
-        rewind($this->statusFile);
+        ftruncate($this->statusFile, 0);
         fwrite($this->statusFile, $csvInputFinalStatus . ($i + 1) .
           " of $totalEmails Civi records processed");
       }
@@ -172,7 +221,9 @@ class N2FReconciliationRunner {
         }
       }
 
-      $outRow = $emptyOutRow;
+      $outRow = $this->emptyOutRow;
+      $columnOffsets = $this->columnOffsets;
+
       $this->processCiviBefore($localPerson, $outRow);
 
       if ($emailRecord['count_contact_id'] > 1) {

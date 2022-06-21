@@ -47,6 +47,8 @@ class CRM_OSDI_ActionNetwork_ReconcilerTest extends \PHPUnit\Framework\TestCase 
     self::$system = CRM_OSDI_ActionNetwork_TestUtils::createRemoteSystem();
     self::$mapper = self::createMapper(self::$system);
 
+    \CRM_OSDI_ActionNetwork_Fixture::setUpGeocoding();
+
     parent::setUpBeforeClass();
   }
 
@@ -185,6 +187,43 @@ class CRM_OSDI_ActionNetwork_ReconcilerTest extends \PHPUnit\Framework\TestCase 
   }
 
   public function testReconcileCsvInputAndOutput() {
+    $this->createAndSave8LocalPeople();
+
+    $main = new \Civi\Osdi\ActionNetwork\N2FReconciliationRunner();
+    $main->setInput(__DIR__ . '/reconciliationTestCSVInput.csv');
+    $pathForActualOutput = __DIR__ . '/reconciliationTestOutput.csv';
+    $main->setOutput($pathForActualOutput);
+    $main->run(TRUE);
+
+    $pathForExpectedOutput = __DIR__ . '/reconciliationTestExpectedOutput.csv';
+
+    $this->assertCSVsAreEquivalent($pathForExpectedOutput, $pathForActualOutput);
+  }
+
+  public function testReconcileCsvInputAndOutput_Resume() {
+    $this->createAndSave8LocalPeople();
+
+    $main = new \Civi\Osdi\ActionNetwork\N2FReconciliationRunner();
+    $main->setInput(__DIR__ . '/reconciliationTestCSVInput.csv');
+
+    $pathForActualOutput = __DIR__ . '/reconciliationTestOutput.csv';
+    copy(__DIR__ . '/reconciliationTestPartialOutput.csv', $pathForActualOutput);
+
+    $pathForStatus = sys_get_temp_dir() . '/n2f_reconciliation_status';
+    copy(__DIR__ . '/reconciliationTestPartialStatus', $pathForStatus);
+
+    $main->setOutput($pathForActualOutput);
+    $main->run(FALSE);
+
+    $pathForExpectedOutput = __DIR__ . '/reconciliationTestExpectedOutput.csv';
+
+    $this->assertCSVsAreEquivalent($pathForExpectedOutput, $pathForActualOutput);
+  }
+
+  private function createAndSave8LocalPeople(): void {
+    $query = "ALTER TABLE civicrm_contact AUTO_INCREMENT = 1000";
+    CRM_Core_DAO::executeQuery($query);
+
     $augustusLocal = new LocalPerson();
     $augustusLocal->firstName->set('Augustus');
     $augustusLocal->lastName->set('Wright');
@@ -266,19 +305,14 @@ class CRM_OSDI_ActionNetwork_ReconcilerTest extends \PHPUnit\Framework\TestCase 
     $zeroLocal->emailEmail->set('zero@onetwothree.com');
     $zeroLocal->emailOnHold->set(TRUE);
     $zeroLocal->save();
+  }
 
-    \CRM_OSDI_ActionNetwork_Fixture::setUpGeocoding();
-    $main = new \Civi\Osdi\ActionNetwork\N2FReconciliationRunner();
-    $main->setInput(__DIR__ . '/reconciliationTestCSVInput.csv');
-    $outputFilePath = __DIR__ . '/reconciliationTestOutput.csv';
-    $main->setOutput($outputFilePath);
-    $main->run();
-
-    $expectedCsv = Reader::createFromPath(__DIR__ . '/reconciliationTestExpectedOutput.csv');
+  private function assertCSVsAreEquivalent(string $pathForExpectedOutput, string $pathForActualOutPut): void {
+    $expectedCsv = Reader::createFromPath($pathForExpectedOutput);
     $expectedCsv->setHeaderOffset(0);
     $expectedRecords = $expectedCsv->getRecords();
 
-    $actualCsv = Reader::createFromPath($outputFilePath);
+    $actualCsv = Reader::createFromPath($pathForActualOutPut);
     $actualCsv->setHeaderOffset(0);
     foreach ($actualCsv as $i => $row) {
       $actualRecords[$i] = $row;
