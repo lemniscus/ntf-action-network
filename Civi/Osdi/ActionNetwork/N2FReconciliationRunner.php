@@ -90,8 +90,8 @@ class N2FReconciliationRunner {
         if ($beforeANId = $outRow['Before AN id']) {
           $this->processedActNetIds[] = $beforeANId;
         }
-        if ($beforeCiviId = $outRow['Before Civi id']) {
-          $this->processedCiviIds[] = $beforeCiviId;
+        if ($afterCiviId = $outRow['After Civi id']) {
+          $this->processedCiviIds[] = $afterCiviId;
         }
       }
     }
