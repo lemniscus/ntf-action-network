@@ -85,8 +85,9 @@ class N2F extends Person {
     $record['contact_type'] = 'Individual';
     $record['id'] = $this->getId();
 
-    return Contact::save(FALSE)
-      ->addRecord($record)->execute()->first()['id'];
+    $postSaveContactArray = Contact::save(FALSE)
+      ->addRecord($record)->execute()->first();
+    return $postSaveContactArray['id'];
   }
 
   protected function savePhone($cid): void {

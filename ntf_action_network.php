@@ -23,6 +23,46 @@ function ntf_action_network_civicrm_geocoderFormat($geoProvider, &$values, $xml)
   }
 }
 
+function ntf_action_network_civicrm_check(&$messages, $statusNames, $includeDisabled) {
+  if ($statusNames && !in_array('ntfActionNetworkZombieJob', $statusNames)) {
+    return;
+  }
+
+  if (!$includeDisabled) {
+    $disabled = \Civi\Api4\StatusPreference::get()
+      ->setCheckPermissions(FALSE)
+      ->addWhere('is_active', '=', FALSE)
+      ->addWhere('domain_id', '=', 'current_domain')
+      ->addWhere('name', '=', 'ntfActionNetworkZombieJob')
+      ->execute()->count();
+    if ($disabled) {
+      return;
+    }
+  }
+
+  $jobStartTime = Civi::settings()->get('ntfActionNetwork.syncJobStartTime');
+  $jobProcessId = Civi::settings()->get('ntfActionNetwork.syncJobProcessId');
+  if (empty($jobStartTime) || empty(($jobProcessId))) {
+    return;
+  }
+
+  if (posix_getsid($jobProcessId) === FALSE) {
+    return;
+  }
+
+  if (time() - $jobStartTime > 3600) {
+    $messages[] = new CRM_Utils_Check_Message(
+      'ntfActionNetworkZombieJob',
+      ts('An Action Network sync job has been running for over an hour. '
+        . 'This prevents new sync jobs from running. Process ID %1 began %2.',
+        [1 => $jobProcessId, 2 => date(DATE_COOKIE, $jobStartTime)]),
+      ts('Long-Running Action Network Sync'),
+      \Psr\Log\LogLevel::WARNING,
+      'fa-hourglass'
+    );
+  }
+}
+
 /**
  * Implements hook_civicrm_config().
  *

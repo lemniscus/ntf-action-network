@@ -3,11 +3,14 @@
 namespace Civi\Osdi\ActionNetwork\Mapper;
 
 use Civi\Osdi\ActionNetwork\Object\Person as RemotePerson;
+use Civi\Osdi\LocalObject\LocalObjectInterface;
 use Civi\Osdi\LocalObject\Person\N2F as LocalPerson;
+use Civi\Osdi\MapperInterface;
+use Civi\Osdi\RemoteObjectInterface;
 use Civi\Osdi\RemoteSystemInterface;
 use CRM_NtfActionNetwork_ExtensionUtil as E;
 
-class NineToFive2022May {
+class NineToFive2022June implements MapperInterface {
 
   private RemoteSystemInterface $remoteSystem;
 
@@ -15,8 +18,11 @@ class NineToFive2022May {
     $this->remoteSystem = $remoteSystem;
   }
 
-  public function mapLocalToRemote(LocalPerson $localPerson,
-      RemotePerson $remotePerson = NULL): RemotePerson {
+  public function mapLocalToRemote(LocalObjectInterface $localPerson,
+      RemoteObjectInterface $remotePerson = NULL): RemotePerson {
+
+    /** @var \Civi\Osdi\LocalObject\Person\N2F $l */
+    /** @var \Civi\Osdi\ActionNetwork\Object\Person $remotePerson */
 
     $l = $localPerson->loadOnce();
     $remotePerson = $remotePerson ?? new RemotePerson($this->remoteSystem);
@@ -66,8 +72,11 @@ class NineToFive2022May {
     return $remotePerson;
   }
 
-  public function mapRemoteToLocal(RemotePerson $remotePerson,
-      LocalPerson $localPerson = NULL): LocalPerson {
+  public function mapRemoteToLocal(RemoteObjectInterface $remotePerson,
+      LocalObjectInterface $localPerson = NULL): LocalPerson {
+
+    /** @var \Civi\Osdi\LocalObject\Person\N2F $localPerson */
+    /** @var \Civi\Osdi\ActionNetwork\Object\Person $remotePerson */
 
     $localPerson = $localPerson ?? new LocalPerson();
 
@@ -104,13 +113,13 @@ class NineToFive2022May {
 
       $zipIsDummy = ($zip === ($remotePerson->customFields->get()['Placeholder ZIP'] ?? ''));
 
-      $localPerson->addressStreetAddress->set($remotePerson->postalStreet->get());
       if (!$zipIsDummy) {
+        $localPerson->addressStreetAddress->set($remotePerson->postalStreet->get());
         $localPerson->addressCity->set($remotePerson->postalLocality->get());
+        $localPerson->addressStateProvinceId->set($stateId);
+        $localPerson->addressPostalCode->set($zip);
+        $localPerson->addressCountryId->set($countryId);
       }
-      $localPerson->addressStateProvinceId->set($stateId);
-      $localPerson->addressPostalCode->set($zipIsDummy ? NULL : $zip);
-      $localPerson->addressCountryId->set($countryId);
     }
     return $localPerson;
   }
@@ -212,8 +221,10 @@ class NineToFive2022May {
     return $phoneNumber;
   }
 
-  public function mapLanguageFromActionNetwork(RemotePerson $remotePerson,
-                                               LocalPerson $localPerson): ?array {
+  public function mapLanguageFromActionNetwork(
+    RemotePerson $remotePerson,
+    LocalPerson $localPerson
+  ): ?array {
     $rpLanguage = $remotePerson->languageSpoken->get();
     if ('es' === $rpLanguage) {
       if (empty($localPerson->individualLanguagesSpoken->get())) {

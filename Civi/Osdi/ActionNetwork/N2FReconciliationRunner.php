@@ -452,22 +452,6 @@ class N2FReconciliationRunner {
     return $emailGet->execute();
   }
 
-  private function logError($message, $context) {
-    static $levelMap;
-
-    if (!isset($levelMap)) {
-      $levelMap = \Civi::log()->getMap();
-    }
-
-    if (!empty($context)) {
-      if (isset($context['exception'])) {
-        $context['exception'] = \CRM_Core_Error::formatTextException($context['exception']);
-      }
-      $message .= "\n" . print_r($context, 1);
-    }
-    \CRM_Core_Error::debug_log_message($message, FALSE, 'osdi', $levelMap[\Psr\Log\LogLevel::ERROR]);
-  }
-
   private function saveRecordsAndWriteToCsv(
     RemotePerson $remotePerson,
     LocalPerson $localPerson,
@@ -507,7 +491,7 @@ class N2FReconciliationRunner {
     }
     else {
       $outRow[$this->columnOffsets['sync status']] = "error: $errorMessage";
-      $this->logError($errorMessage, $errorContext);
+      Logger::logError($errorMessage, $errorContext);
     }
 
     $this->out->insertOne($outRow);

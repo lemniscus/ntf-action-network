@@ -169,7 +169,9 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $this->assertEquals($civiContact['address.postal_code'], $result->postalCode->get());
     $this->assertEquals($civiContact['address.country_id:name'], $result->postalCountry->get());
     $this->assertEquals($civiContact['email.email'], $result->emailAddress->get());
-    $this->assertEquals($civiContact['phone.phone_numeric'], $result->phoneNumber->get());
+    $this->assertEquals(
+      substr($civiContact['phone.phone_numeric'], -10),
+      substr(preg_replace('/[^0-9]/', '', $result->phoneNumber->get()), -10));
     $this->assertEquals($civiContact['Individual.Languages_spoken'][0] == 'spa' ? 'es' : 'en', $result->languageSpoken->get());
   }
 
@@ -206,7 +208,9 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
       $existingRemotePerson
     );
     $this->assertEquals('Civi\Osdi\ActionNetwork\Object\Person', get_class($result));
-    $this->assertEquals('19098887777', $result->phoneNumber->get());
+    $this->assertEquals(
+      '9098887777',
+      substr(preg_replace('/[^0-9]/', '', $result->phoneNumber->get()), -10));
     $this->assertEquals($civiContact['first_name'], $result->givenName->get());
     $this->assertEquals($civiContact['last_name'], $result->familyName->get());
   }
@@ -320,7 +324,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $this->assertEmpty($result->postalLocality->get() ?? NULL);
     $this->assertEquals('MO', $result->postalRegion->get());
     $this->assertEquals('63464', $result->postalCode->get());
-    $this->assertEquals('63464', $result->customFields->get()['Dummy ZIP']);
+    $this->assertEquals('63464', $result->customFields->get()['Placeholder ZIP']);
   }
 
   public function testMapLocalToRemote_ZIPWorkaround_EnoughDetailToLookupRealZIP() {
@@ -355,7 +359,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $this->assertEquals('Ty Ty', $result->postalLocality->get());
     $this->assertEquals('GA', $result->postalRegion->get());
     $this->assertEquals('31795', $result->postalCode->get());
-    $this->assertEquals('no', $result->customFields->get()['Dummy ZIP']);
+    $this->assertEquals('no', $result->customFields->get()['Placeholder ZIP']);
   }
 
   public function testMapLocalToRemote_ZIPWorkaround_NotEnoughDetailToLookupRealZIP() {
@@ -390,7 +394,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $this->assertEquals('San Francisco', $result->postalLocality->get());
     $this->assertEquals('CA', $result->postalRegion->get());
     $this->assertEquals('94102', $result->postalCode->get());
-    $this->assertEquals('94102', $result->customFields->get()['Dummy ZIP']);
+    $this->assertEquals('94102', $result->customFields->get()['Placeholder ZIP']);
   }
 
   /**
@@ -521,7 +525,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $unsavedNewPerson->emailAddress->set('dummy@zipcode.net');
     $unsavedNewPerson->postalCode->set('54643');
     $unsavedNewPerson->postalCountry->set('US');
-    $unsavedNewPerson->customFields->set(['Dummy ZIP' => '54643']);
+    $unsavedNewPerson->customFields->set(['Placeholder ZIP' => '54643']);
     $remotePerson = $unsavedNewPerson->save();
 
     $result = self::$mapper->mapRemoteToLocal($remotePerson)->save();

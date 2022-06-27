@@ -90,7 +90,7 @@ class Reconciliation2022May001 {
       if ($zipForActNet !== $r->postalCode->get()) {
         $r->customFields->set(array_merge(
           $r->customFields->get() ?? [],
-          ['Dummy ZIP' => $dummyZip ?? 'no']
+          ['Placeholder ZIP' => $dummyZip ?? 'no']
         ));
       }
 
