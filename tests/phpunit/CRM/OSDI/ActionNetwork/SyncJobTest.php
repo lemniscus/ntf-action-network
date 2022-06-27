@@ -291,7 +291,7 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
 
     for ($i = 1; $i < 5; $i++) {
       $remotePerson = new \Civi\Osdi\ActionNetwork\Object\Person(self::$system);
-      $remotePerson->emailAddress->set($email = "syncjobtest$i@null.org");
+      $remotePerson->emailAddress->set($email = "syncJobFromANTest$i@null.org");
       $remotePerson->givenName->set('Sync Job Test');
       $remotePerson->familyName->set($lastName = "$i $testTime");
       $remotePerson->save();

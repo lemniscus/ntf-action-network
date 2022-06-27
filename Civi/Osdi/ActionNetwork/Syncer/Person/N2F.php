@@ -69,13 +69,14 @@ class N2F implements PersonSyncerInterface {
     if (empty($cutoff)) {
       $cutoffUnixTime = \Civi\Api4\OsdiPersonSyncState::get(FALSE)
         ->addSelect('MAX(remote_pre_sync_modified_time) AS maximum')
-        ->execute()->single()['maximum'] - 1 ?? 0;
+        ->execute()->single()['maximum'] ?? time();
+      $cutoffUnixTime--;
       $cutoff = RemoteSystem::formatDateTime($cutoffUnixTime);
     }
 
     \Civi::settings()->add([
       'ntfActionNetwork.syncJobProcessId' => getmypid(),
-      'ntfActionNetwork.syncJobStartTime' => strtotime(time()),
+      'ntfActionNetwork.syncJobStartTime' => time(),
       'ntfActionNetwork.syncJobEndTime' => NULL,
       'ntfActionNetwork.syncJobActNetModTimeCutoff' => $cutoff,
     ]);
@@ -92,7 +93,10 @@ class N2F implements PersonSyncerInterface {
       $this->syncFromRemoteIfNeeded($remotePerson);
     }
 
-    \Civi::settings()->set('ntfActionNetwork.syncJobEndTime', time());
+    \Civi::settings()->add([
+      'ntfActionNetwork.syncJobProcessId' => NULL,
+      'ntfActionNetwork.syncJobEndTime' => time(),
+    ]);
 
     return $searchResults->rawCurrentCount();
   }
@@ -110,7 +114,7 @@ class N2F implements PersonSyncerInterface {
 
     \Civi::settings()->add([
       'ntfActionNetwork.syncJobProcessId' => getmypid(),
-      'ntfActionNetwork.syncJobStartTime' => strtotime(time()),
+      'ntfActionNetwork.syncJobStartTime' => time(),
       'ntfActionNetwork.syncJobEndTime' => NULL,
     ]);
 
@@ -149,7 +153,10 @@ class N2F implements PersonSyncerInterface {
       $this->syncFromLocalIfNeeded($localPerson);
     }
 
-    \Civi::settings()->set('ntfActionNetwork.syncJobEndTime', time());
+    \Civi::settings()->add([
+      'ntfActionNetwork.syncJobProcessId' => NULL,
+      'ntfActionNetwork.syncJobEndTime' => time(),
+    ]);
 
     return $i;
   }
@@ -379,13 +386,13 @@ class N2F implements PersonSyncerInterface {
       $remotePostSyncModifiedTime = $this->modTimeAsUnixTimestamp($remotePerson);
     }
     else {
-      $statusMessage = 'no changes made to Civi contact';
+      $statusMessage = 'no changes made to Action Network person';
       $remotePostSyncModifiedTime = $remotePreSyncModifiedTime;
     }
 
     $statusCode = SyncResult::SUCCESS;
 
-    if ($saveResult->isError()) {
+    if ($saveResult && $saveResult->isError()) {
       $statusCode = SyncResult::ERROR;
       $statusMessage = 'problem when saving Action Network person: '
         . $saveResult->getMessage();
