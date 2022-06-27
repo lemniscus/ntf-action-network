@@ -302,6 +302,9 @@ class N2F implements PersonSyncerInterface {
     LocalPerson $localPerson = NULL,
     RemotePerson $remotePerson = NULL
   ): ?LocalRemotePair {
+    if (empty($syncState->getContactId()) || empty($syncState->getRemotePersonId())) {
+      return NULL;
+    }
     try {
       $localObject = $localPerson ??
         (new LocalPerson($syncState->getContactId()))->load();
