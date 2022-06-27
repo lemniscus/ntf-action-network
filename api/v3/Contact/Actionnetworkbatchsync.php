@@ -45,7 +45,7 @@ function civicrm_api3_contact_Actionnetworkbatchsync(array $params): array {
   $syncer->setMapper(new \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June($system));
 
   return civicrm_api3_create_success(
-    $syncer->batchSyncFromRemote(),
+    $syncer->batchSyncFromRemote() + $syncer->batchSyncFromLocal(),
     $params,
     'Contact',
     'Actionnetworkbatchsync');
