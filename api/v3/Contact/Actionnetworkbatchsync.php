@@ -44,8 +44,16 @@ function civicrm_api3_contact_Actionnetworkbatchsync(array $params): array {
       $syncer, \Civi\Osdi\LocalObject\Person\N2F::class));
   $syncer->setMapper(new \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June($system));
 
-  $countFromRemote = $syncer->batchSyncFromRemote();
-  $countFromLocal = $syncer->batchSyncFromLocal();
+  try {
+    $countFromRemote = $syncer->batchSyncFromRemote();
+    $countFromLocal = $syncer->batchSyncFromLocal();
+  }
+  catch (Throwable $e) {
+    return civicrm_api3_create_error(
+      $e->getMessage(),
+      ['exception' => \CRM_Core_Error::formatTextException($e)],
+    );
+  }
 
   return civicrm_api3_create_success(
     "AN->Civi: $countFromRemote, Civi->AN: $countFromLocal",

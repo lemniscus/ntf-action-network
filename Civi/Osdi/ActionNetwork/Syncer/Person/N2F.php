@@ -97,6 +97,7 @@ class N2F implements PersonSyncerInterface {
 
     foreach ($searchResults as $remotePerson) {
       Logger::logDebug('Considering AN id ' . $remotePerson->getId() .
+        ', mod ' . $remotePerson->modifiedDate->get() .
         ', ' . $remotePerson->emailAddress->get());
       $syncResult = $this->syncFromRemoteIfNeeded($remotePerson);
       Logger::logDebug('Result for  AN id ' . $remotePerson->getId() .
@@ -121,11 +122,15 @@ class N2F implements PersonSyncerInterface {
       return NULL;
     }
 
-    $cutoffUnixTime = \Civi\Api4\OsdiPersonSyncState::get(FALSE)
-      ->addSelect('MAX(local_pre_sync_modified_time) AS maximum')
-      ->addWhere('sync_origin', '=', PersonSyncState::ORIGIN_LOCAL)
-      ->execute()->single()['maximum'] ?? time() - 60;
-    $cutoff = date('Y-m-d H:i:s', $cutoffUnixTime);
+    $cutoff = \Civi::settings()->get('ntfActionNetwork.syncJobCiviModTimeCutoff');
+
+    if (empty($cutoff)) {
+      $cutoffUnixTime = \Civi\Api4\OsdiPersonSyncState::get(FALSE)
+          ->addSelect('MAX(local_pre_sync_modified_time) AS maximum')
+          ->addWhere('sync_origin', '=', PersonSyncState::ORIGIN_LOCAL)
+          ->execute()->single()['maximum'] ?? time() - 60;
+      $cutoff = date('Y-m-d H:i:s', $cutoffUnixTime);
+    }
 
     Logger::logDebug("Horizon for Civi->AN sync set to $cutoff");
 
@@ -136,8 +141,17 @@ class N2F implements PersonSyncerInterface {
     ]);
 
     $civiEmails = \Civi\Api4\Email::get(FALSE)
-      ->addSelect('contact_id', 'COUNT(DISTINCT contact_id) AS count_contact_id')
+      ->addSelect(
+        'contact_id',
+        //'COUNT(DISTINCT contact_id) AS count_contact_id',
+        'contact.modified_date',
+        'sync_state.local_pre_sync_modified_time',
+        'sync_state.local_post_sync_modified_time')
       ->addJoin('Contact AS contact', 'INNER')
+      ->addJoin(
+        'OsdiPersonSyncState AS sync_state',
+        'LEFT',
+        ['contact_id', '=', 'sync_state.contact_id'])
       ->addGroupBy('email')
       ->addOrderBy('contact.modified_date')
       ->addWhere('contact.modified_date', '>=', $cutoff)
@@ -150,9 +164,22 @@ class N2F implements PersonSyncerInterface {
     Logger::logDebug('Civi->AN sync: ' . $civiEmails->count() . ' to consider');
 
     foreach ($civiEmails as $i => $emailRecord) {
+      if (strtotime($emailRecord['contact.modified_date']) ===
+        $emailRecord['sync_state.local_post_sync_modified_time']
+      ) {
+        $upToDate[] = $emailRecord['contact_id'];
+        continue;
+      }
+
+      if ($upToDate ?? FALSE) {
+        Logger::logDebug('Civi Ids already up to date: ' . implode(', ', $upToDate));
+        $upToDate = [];
+      }
+
       $localPerson = (new LocalPerson($emailRecord['contact_id']))->loadOnce();
 
       Logger::logDebug('Considering Civi id ' . $localPerson->getId() .
+        ', mod ' . $localPerson->modifiedDate->get() .
         ', ' . $localPerson->emailEmail->get());
 
       $doNotEmail = $localPerson->doNotEmail->get();
@@ -180,12 +207,19 @@ class N2F implements PersonSyncerInterface {
         ': ' . $syncResult->getStatusCode() . ' - ' . $syncResult->getMessage());
     }
 
+    if ($upToDate ?? FALSE) {
+      Logger::logDebug('Civi Ids already up to date: ' . implode(', ', $upToDate));
+      $upToDate = [];
+    }
+
     $count = ($i ?? -1) + 1;
     Logger::logDebug('Finished batch Civi->AN sync; count: ' . $count);
 
     \Civi::settings()->add([
       'ntfActionNetwork.syncJobProcessId' => NULL,
       'ntfActionNetwork.syncJobEndTime' => time(),
+      'ntfActionNetwork.syncJobCiviModTimeCutoff' =>
+        $emailRecord['sync_state.local_pre_sync_modified_time'] ?? $cutoff,
     ]);
 
     return $count;
