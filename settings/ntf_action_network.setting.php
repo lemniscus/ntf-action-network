@@ -17,6 +17,15 @@ return [
     'is_domain'   => 1,
     'is_contact'  => 0,
   ],
+  'ntfActionNetwork.syncJobCiviModTimeCutoff' => [
+    'name'        => 'ntfActionNetwork.syncJobCiviModTimeCutoff',
+    'title'       => ts('Action Network sync Civi mod time cutoff'),
+    'description' => 'Lower limit for Civi modification datetimes in '
+      . 'the last sync job',
+    'type'        => 'String',
+    'is_domain'   => 1,
+    'is_contact'  => 0,
+  ],
   'ntfActionNetwork.syncJobStartTime' => [
     'name'        => 'ntfActionNetwork.syncJobStartTime',
     'title'       => ts('Action Network sync start time'),

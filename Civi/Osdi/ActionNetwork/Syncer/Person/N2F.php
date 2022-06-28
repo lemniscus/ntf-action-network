@@ -56,10 +56,13 @@ class N2F implements PersonSyncerInterface {
   }
 
   public function batchSyncFromRemote(): ?int {
+    Logger::logDebug('Batch AN->Civi sync requested');
     $lastJobPid = \Civi::settings()->get('ntfActionNetwork.syncJobProcessId');
     if ($lastJobPid && posix_getsid($lastJobPid) !== FALSE) {
+      Logger::logDebug("Sync process ID $lastJobPid is still running; quitting new process");
       return NULL;
     }
+    Logger::logDebug('Batch AN->Civi sync process ID is ' . getmypid());
 
     $lastJobEndTime = \Civi::settings()->get('ntfActionNetwork.syncJobEndTime');
     if (empty($lastJobEndTime)) {
@@ -69,10 +72,13 @@ class N2F implements PersonSyncerInterface {
     if (empty($cutoff)) {
       $cutoffUnixTime = \Civi\Api4\OsdiPersonSyncState::get(FALSE)
         ->addSelect('MAX(remote_pre_sync_modified_time) AS maximum')
-        ->execute()->single()['maximum'] ?? time();
+        ->addWhere('sync_origin', '=', PersonSyncState::ORIGIN_REMOTE)
+        ->execute()->single()['maximum'] ?? time() - 60;
       $cutoffUnixTime--;
       $cutoff = RemoteSystem::formatDateTime($cutoffUnixTime);
     }
+
+    Logger::logDebug("Horizon for AN->Civi sync set to $cutoff");
 
     \Civi::settings()->add([
       'ntfActionNetwork.syncJobProcessId' => getmypid(),
@@ -90,8 +96,14 @@ class N2F implements PersonSyncerInterface {
     ]);
 
     foreach ($searchResults as $remotePerson) {
-      $this->syncFromRemoteIfNeeded($remotePerson);
+      Logger::logDebug('Considering AN id ' . $remotePerson->getId() .
+        ', ' . $remotePerson->emailAddress->get());
+      $syncResult = $this->syncFromRemoteIfNeeded($remotePerson);
+      Logger::logDebug('Result for  AN id ' . $remotePerson->getId() .
+      ': ' . $syncResult->getStatusCode() . ' - ' . $syncResult->getMessage());
     }
+
+    Logger::logDebug('Finished batch AN->Civi sync; count: ' . $searchResults->rawCurrentCount());
 
     \Civi::settings()->add([
       'ntfActionNetwork.syncJobProcessId' => NULL,
@@ -102,15 +114,20 @@ class N2F implements PersonSyncerInterface {
   }
 
   public function batchSyncFromLocal(): ?int {
+    Logger::logDebug('Batch Civi->AN sync requested');
     $lastJobPid = \Civi::settings()->get('ntfActionNetwork.syncJobProcessId');
     if ($lastJobPid && posix_getsid($lastJobPid) !== FALSE) {
+      Logger::logDebug("Sync process ID $lastJobPid is still running; quitting new process");
       return NULL;
     }
 
     $cutoffUnixTime = \Civi\Api4\OsdiPersonSyncState::get(FALSE)
       ->addSelect('MAX(local_pre_sync_modified_time) AS maximum')
-      ->execute()->single()['maximum'] ?? 0;
+      ->addWhere('sync_origin', '=', PersonSyncState::ORIGIN_LOCAL)
+      ->execute()->single()['maximum'] ?? time() - 60;
     $cutoff = date('Y-m-d H:i:s', $cutoffUnixTime);
+
+    Logger::logDebug("Horizon for Civi->AN sync set to $cutoff");
 
     \Civi::settings()->add([
       'ntfActionNetwork.syncJobProcessId' => getmypid(),
@@ -123,14 +140,20 @@ class N2F implements PersonSyncerInterface {
       ->addJoin('Contact AS contact', 'INNER')
       ->addGroupBy('email')
       ->addOrderBy('contact.modified_date')
+      ->addWhere('contact.modified_date', '>=', $cutoff)
       ->addWhere('is_primary', '=', TRUE)
       ->addWhere('contact.is_deleted', '=', FALSE)
       ->addWhere('contact.is_opt_out', '=', FALSE)
       ->addWhere('contact.contact_type', '=', 'Individual')
       ->execute();
 
+    Logger::logDebug('Civi->AN sync: ' . $civiEmails->count() . ' to consider');
+
     foreach ($civiEmails as $i => $emailRecord) {
       $localPerson = (new LocalPerson($emailRecord['contact_id']))->loadOnce();
+
+      Logger::logDebug('Considering Civi id ' . $localPerson->getId() .
+        ', ' . $localPerson->emailEmail->get());
 
       $doNotEmail = $localPerson->doNotEmail->get();
       $emailOnHold = $localPerson->emailOnHold->get();
@@ -139,6 +162,8 @@ class N2F implements PersonSyncerInterface {
 
       if ($doNotEmail || $emailIsDummy || $emailOnHold) {
         if ($doNotSms || empty($localPerson->smsPhonePhone->get())) {
+          Logger::logDebug('Skipping Civi id ' . $localPerson->getId() .
+            ' because they cannot be emailed or texted');
           continue;
         }
       }
@@ -150,15 +175,20 @@ class N2F implements PersonSyncerInterface {
       //  continue;
       //}
 
-      $this->syncFromLocalIfNeeded($localPerson);
+      $syncResult = $this->syncFromLocalIfNeeded($localPerson);
+      Logger::logDebug('Result for  Civi id ' . $localPerson->getId() .
+        ': ' . $syncResult->getStatusCode() . ' - ' . $syncResult->getMessage());
     }
+
+    $count = ($i ?? -1) + 1;
+    Logger::logDebug('Finished batch Civi->AN sync; count: ' . $count);
 
     \Civi::settings()->add([
       'ntfActionNetwork.syncJobProcessId' => NULL,
       'ntfActionNetwork.syncJobEndTime' => time(),
     ]);
 
-    return $i;
+    return $count;
   }
 
   public function syncFromRemoteIfNeeded(RemotePerson $remotePerson): SyncResult {

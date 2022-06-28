@@ -204,16 +204,16 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
   }
 
   public function testBatchSyncFromANDoesNotRunConcurrently() {
-    Civi::settings()->add([
-      'ntfActionNetwork.syncJobProcessId' => getmypid(),
-      'ntfActionNetwork.syncJobActNetModTimeCutoff'
-      => \Civi\Osdi\ActionNetwork\RemoteSystem::formatDateTime(time() - 1),
-      'ntfActionNetwork.syncJobEndTime' => NULL,
-    ]);
-
     $remotePerson = new \Civi\Osdi\ActionNetwork\Object\Person(self::$system);
     $remotePerson->emailAddress->set($email = "syncjobtest-no-concurrent@null.org");
     $remotePerson->save();
+
+    Civi::settings()->add([
+      'ntfActionNetwork.syncJobProcessId' => getmypid(),
+      'ntfActionNetwork.syncJobActNetModTimeCutoff'
+      => \Civi\Osdi\ActionNetwork\RemoteSystem::formatDateTime(strtotime($remotePerson->modifiedDate->get()) - 1),
+      'ntfActionNetwork.syncJobEndTime' => NULL,
+    ]);
 
     $syncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2F(self::$system);
     $syncer->setMatcher(
@@ -228,6 +228,7 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
     self::assertEquals(0, $syncedContactCount);
 
     Civi::settings()->set('ntfActionNetwork.syncJobProcessId', 9999999999999);
+    sleep(1);
     $syncer->batchSyncFromRemote();
     $syncedContactCount = \Civi\Api4\Email::get(FALSE)
       ->addWhere('email', '=', $email)
@@ -272,7 +273,9 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
 
     $syncStartTime = time();
 
+    sleep(1);
     $result = civicrm_api3('Contact', 'actionnetworkbatchsync');
+    sleep(1);
 
     self::assertEquals(0, $result['is_error']);
     $this->assertBatchSyncFromAN($localPeople, $syncStartTime);
@@ -294,7 +297,7 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
       $remotePerson->emailAddress->set($email = "syncJobFromANTest$i@null.org");
       $remotePerson->givenName->set('Sync Job Test');
       $remotePerson->familyName->set($lastName = "$i $testTime");
-      $remotePerson->save();
+      $remotePeople[$i] = $remotePerson->save();
       $modTime = strtotime($remotePerson->modifiedDate->get());
 
       $localPerson = new LocalPerson();
@@ -303,21 +306,22 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
       $localPeople[$i] = $localPerson->save();
 
       $syncState = new \Civi\Osdi\PersonSyncState();
-      // make persons 3 & 4 "out of sync": their actual mod times will be
-      // more recent than the mod times recorded at the time of the last sync
+      $syncState->setSyncOrigin(\Civi\Osdi\PersonSyncState::ORIGIN_REMOTE);
       $syncState->setRemotePersonId($remotePerson->getId());
       $syncState->setContactId($localPerson->getId());
-      $syncState->setRemotePreSyncModifiedTime($i > 2 ? $modTime - 120 : $modTime);
-      $syncState->setRemotePostSyncModifiedTime($i > 2 ? $modTime - 60 : $modTime);
-      $syncState->setLocalPreSyncModifiedTime($modTime);
+      $syncState->setRemotePreSyncModifiedTime($modTime - 10);
+      $syncState->setRemotePostSyncModifiedTime($modTime);
+      $syncState->setLocalPreSyncModifiedTime($modTime - 10);
       $syncState->setLocalPostSyncModifiedTime($modTime);
       $syncState->save();
 
-      if ($i == 2) {
-        $cutOff = $remotePerson->modifiedDate->get();
-        sleep(2);
-      }
+      usleep(400000);
     }
+
+    usleep(700000);
+    $remotePeople[3]->languageSpoken->set('es');
+    $remotePeople[3]->save();
+
     return $localPeople;
   }
 
@@ -325,7 +329,7 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
     foreach ($localPeople as $i => $localPerson) {
       /** @var \Civi\Osdi\LocalObject\Person\N2F $localPerson */
       $localPerson->load();
-      if ($i > 2) {
+      if ($i === 3) {
         self::assertEquals('Sync Job Test', $localPerson->firstName->get());
         self::assertGreaterThanOrEqual($syncStartTime, strtotime($localPerson->modifiedDate->get()));
         self::assertLessThan($syncStartTime + 60, strtotime($localPerson->modifiedDate->get()));
@@ -352,7 +356,7 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
       $localPerson->emailEmail->set($email = "syncJobFromCiviTest$i@null.org");
       $localPerson->firstName->set('Sync Job Test');
       $localPerson->lastName->set($lastName = "$i $testTime");
-      $localPerson->save();
+      $localPeople[$i] = $localPerson->save();
       $modTime = strtotime($localPerson->modifiedDate->get());
 
       $remotePerson = new \Civi\Osdi\ActionNetwork\Object\Person(self::$system);
@@ -362,29 +366,30 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
       $remotePeople[$i] = $remotePerson->save();
 
       $syncState = new \Civi\Osdi\PersonSyncState();
-      // make persons 3 & 4 "out of sync": their actual mod times will be
-      // more recent than the mod times recorded at the time of the last sync
+      $syncState->setSyncOrigin(\Civi\Osdi\PersonSyncState::ORIGIN_REMOTE);
       $syncState->setRemotePersonId($remotePerson->getId());
       $syncState->setContactId($localPerson->getId());
-      $syncState->setLocalPreSyncModifiedTime($i > 2 ? $modTime - 120 : $modTime);
-      $syncState->setLocalPostSyncModifiedTime($i > 2 ? $modTime - 60 : $modTime);
-      $syncState->setRemotePreSyncModifiedTime($modTime);
+      $syncState->setLocalPreSyncModifiedTime($modTime - 10);
+      $syncState->setLocalPostSyncModifiedTime($modTime);
+      $syncState->setRemotePreSyncModifiedTime($modTime - 10);
       $syncState->setRemotePostSyncModifiedTime($modTime);
       $syncState->save();
 
-      if ($i == 2) {
-        $maxRemoteModTimeBeforeSync = strtotime($remotePerson->modifiedDate->get());
-        sleep(2);
-      }
+      usleep(400000);
     }
-    return array($remotePeople, $maxRemoteModTimeBeforeSync);
+
+    usleep(700000);
+    $localPeople[3]->individualLanguagesSpoken->set(['es']);
+    $localPeople[3]->save();
+
+    return array($remotePeople, strtotime($remotePeople[4]->modifiedDate->get()));
   }
 
   private function assertBatchSyncFromCivi($remotePeople, int $syncStartTime, $maxRemoteModTimeBeforeSync): void {
     foreach ($remotePeople as $i => $remotePerson) {
       /** @var \Civi\Osdi\ActionNetwork\Object\Person $remotePerson */
       $remotePerson->load();
-      if ($i > 2) {
+      if ($i == 3) {
         self::assertEquals('Sync Job Test', $remotePerson->givenName->get());
         self::assertGreaterThanOrEqual($syncStartTime, strtotime($remotePerson->modifiedDate->get()));
         self::assertLessThan($syncStartTime + 60, strtotime($remotePerson->modifiedDate->get()));

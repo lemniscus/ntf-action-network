@@ -5,11 +5,7 @@ namespace Civi\Osdi\ActionNetwork;
 class Logger {
 
   public static function logError(?string $message, $context = NULL) {
-    static $levelMap;
-
-    if (!isset($levelMap)) {
-      $levelMap = \Civi::log()->getMap();
-    }
+    $priority = self::mapPriority(\Psr\Log\LogLevel::ERROR);
 
     if (!empty($context)) {
       if (isset($context['exception'])) {
@@ -17,7 +13,23 @@ class Logger {
       }
       $message .= "\n" . print_r($context, 1);
     }
-    \CRM_Core_Error::debug_log_message($message, FALSE, 'osdi', $levelMap[\Psr\Log\LogLevel::ERROR]);
+    \CRM_Core_Error::debug_log_message($message, FALSE, 'osdi', $priority);
+  }
+
+  public static function logDebug(?string $message) {
+    $priority = self::mapPriority(\Psr\Log\LogLevel::DEBUG);
+    \CRM_Core_Error::debug_log_message($message, FALSE, 'osdi', $priority);
+  }
+
+  private static function mapPriority(string $psrLogLevel) {
+    static $levelMap;
+
+    if (!isset($levelMap)) {
+      $levelMap = \Civi::log()->getMap();
+    }
+
+    $priority = $levelMap[$psrLogLevel];
+    return $priority;
   }
 
 }
