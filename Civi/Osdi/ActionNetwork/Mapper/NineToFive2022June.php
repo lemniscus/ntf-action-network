@@ -159,13 +159,21 @@ class NineToFive2022June implements MapperInterface {
       return NULL;
     }
 
-    if (!empty($localNumberNorm) && ($localNumberNorm !== $remoteNumberNorm)) {
-      $r->phoneNumber->set($localNumberNorm);
-      $r->phoneStatus->set('subscribed');
-      $message = 'changing phone on a.n. can have unexpected results';
+    $noSmsLocal = $l->isOptOut->get() || $l->doNotSms->get() || empty($localNumberNorm);
+
+    if (!empty($localNumberNorm)) {
+      if ($localNumberNorm === $remoteNumberNorm) {
+        if (!$noSmsLocal && $r->phoneStatus->get() === 'unsubscribed') {
+          $r->phoneStatus->set('subscribed');
+        }
+      }
+      else {
+        $r->phoneNumber->set($localNumberNorm);
+        $r->phoneStatus->set('subscribed');
+        $message = 'changing phone on a.n. can have unexpected results';
+      }
     }
 
-    $noSmsLocal = $l->isOptOut->get() || $l->doNotSms->get() || empty($localNumberNorm);
     if ($noSmsLocal && !empty($remoteNumberNorm)) {
       if ($r->phoneStatus->get() !== 'bouncing') {
         $r->phoneStatus->set('unsubscribed');
