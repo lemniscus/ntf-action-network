@@ -107,7 +107,15 @@ class N2F implements PersonSyncerInterface {
       Logger::logDebug('Considering AN id ' . $remotePerson->getId() .
         ', mod ' . $remotePerson->modifiedDate->get() .
         ', ' . $remotePerson->emailAddress->get());
-      $syncResult = $this->syncFromRemoteIfNeeded($remotePerson);
+
+      try {
+        $syncResult = $this->syncFromRemoteIfNeeded($remotePerson);
+      }
+      catch (\Throwable $e) {
+        $syncResult = new SyncResult(NULL, NULL, NULL, $e->getMessage());
+        Logger::logError($e->getMessage(), ['exception' => $e]);
+      }
+
       Logger::logDebug('Result for  AN id ' . $remotePerson->getId() .
       ': ' . $syncResult->getStatusCode() . ' - ' . $syncResult->getMessage());
     }
