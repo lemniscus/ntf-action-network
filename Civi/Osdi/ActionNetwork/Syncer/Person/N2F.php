@@ -66,14 +66,20 @@ class N2F implements PersonSyncerInterface {
 
     $lastJobEndTime = \Civi::settings()->get('ntfActionNetwork.syncJobEndTime');
     if (empty($lastJobEndTime)) {
-      $cutoff = \Civi::settings()->get('ntfActionNetwork.syncJobActNetModTimeCutoff');
+      Logger::logDebug('Last sync job did not finish successfully');
     }
 
-    if (empty($cutoff)) {
+    $cutoff = \Civi::settings()->get('ntfActionNetwork.syncJobActNetModTimeCutoff');
+    $cutoffWasRetrievedFromPreviousSync = !empty($cutoff);
+
+    if ($cutoffWasRetrievedFromPreviousSync) {
       $cutoffUnixTime = \Civi\Api4\OsdiPersonSyncState::get(FALSE)
         ->addSelect('MAX(remote_pre_sync_modified_time) AS maximum')
         ->addWhere('sync_origin', '=', PersonSyncState::ORIGIN_REMOTE)
-        ->execute()->single()['maximum'] ?? time() - 60;
+        ->execute()->single()['maximum'];
+      if (empty($cutoffUnixTime)) {
+        $cutoffUnixTime = time() - 60;
+      }
       $cutoffUnixTime--;
       $cutoff = RemoteSystem::formatDateTime($cutoffUnixTime);
     }
@@ -86,6 +92,8 @@ class N2F implements PersonSyncerInterface {
       'ntfActionNetwork.syncJobEndTime' => NULL,
       'ntfActionNetwork.syncJobActNetModTimeCutoff' => $cutoff,
     ]);
+
+    $syncStartTime = time();
 
     $searchResults = $this->getRemoteSystem()->find('osdi:people', [
       [
@@ -106,9 +114,13 @@ class N2F implements PersonSyncerInterface {
 
     Logger::logDebug('Finished batch AN->Civi sync; count: ' . $searchResults->rawCurrentCount());
 
+    $newCutoff = RemoteSystem::formatDateTime($syncStartTime - 30);
+    Logger::logDebug("Setting horizon for next AN->Civi sync to $newCutoff");
+
     \Civi::settings()->add([
       'ntfActionNetwork.syncJobProcessId' => NULL,
       'ntfActionNetwork.syncJobEndTime' => time(),
+      'ntfActionNetwork.syncJobActNetModTimeCutoff' => $newCutoff,
     ]);
 
     return $searchResults->rawCurrentCount();
@@ -126,9 +138,9 @@ class N2F implements PersonSyncerInterface {
 
     if (empty($cutoff)) {
       $cutoffUnixTime = \Civi\Api4\OsdiPersonSyncState::get(FALSE)
-          ->addSelect('MAX(local_pre_sync_modified_time) AS maximum')
-          ->addWhere('sync_origin', '=', PersonSyncState::ORIGIN_LOCAL)
-          ->execute()->single()['maximum'] ?? time() - 60;
+        ->addSelect('MAX(local_pre_sync_modified_time) AS maximum')
+        ->addWhere('sync_origin', '=', PersonSyncState::ORIGIN_LOCAL)
+        ->execute()->single()['maximum'] ?? time() - 60;
       $cutoff = date('Y-m-d H:i:s', $cutoffUnixTime);
     }
 
@@ -139,6 +151,8 @@ class N2F implements PersonSyncerInterface {
       'ntfActionNetwork.syncJobStartTime' => time(),
       'ntfActionNetwork.syncJobEndTime' => NULL,
     ]);
+
+    $syncStartTime = time();
 
     $civiEmails = \Civi\Api4\Email::get(FALSE)
       ->addSelect(
@@ -215,11 +229,16 @@ class N2F implements PersonSyncerInterface {
     $count = ($i ?? -1) + 1;
     Logger::logDebug('Finished batch Civi->AN sync; count: ' . $count);
 
+    $mostRecentPreSyncModTime = $emailRecord['sync_state.local_pre_sync_modified_time'];
+    $newCutoff = date(
+      'Y-m-d H:i:s',
+      $mostRecentPreSyncModTime ?? $syncStartTime - 1);
+    Logger::logDebug("Setting horizon for next Civi->AN sync to $newCutoff");
+
     \Civi::settings()->add([
       'ntfActionNetwork.syncJobProcessId' => NULL,
       'ntfActionNetwork.syncJobEndTime' => time(),
-      'ntfActionNetwork.syncJobCiviModTimeCutoff' =>
-        $emailRecord['sync_state.local_pre_sync_modified_time'] ?? $cutoff,
+      'ntfActionNetwork.syncJobCiviModTimeCutoff' => $newCutoff,
     ]);
 
     return $count;
