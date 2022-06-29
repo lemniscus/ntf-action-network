@@ -274,7 +274,7 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
     $syncStartTime = time();
 
     sleep(1);
-    $result = civicrm_api3('Contact', 'actionnetworkbatchsync');
+    $result = civicrm_api3('Contact', 'actionnetworkbatchsync', ['debug' => 1]);
     sleep(1);
 
     self::assertEquals(0, $result['is_error']);
@@ -285,7 +285,7 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
   private function setUpBatchSyncFromAN(): array {
     Civi::settings()->add([
       'ntfActionNetwork.syncJobProcessId' => 99999999999999,
-      'ntfActionNetwork.syncJobActNetModTimeCutoff' => "2000-01-01T00:00:00Z",
+      'ntfActionNetwork.syncJobActNetModTimeCutoff' => self::$system::formatDateTime(time() - 2),
       'ntfActionNetwork.syncJobStartTime' => strtotime("2000-11-11 00:00:00"),
       'ntfActionNetwork.syncJobEndTime' => strtotime("2000-11-11 00:00:11"),
     ]);
@@ -342,9 +342,10 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
   }
 
   private function setUpBatchSyncFromCivi(): array {
+    $cutoff = self::$system::formatDateTime(time() - 2);
     Civi::settings()->add([
       'ntfActionNetwork.syncJobProcessId' => 99999999999999,
-      'ntfActionNetwork.syncJobActNetModTimeCutoff' => "2000-01-01T00:00:00Z",
+      'ntfActionNetwork.syncJobCiviModTimeCutoff' => $cutoff,
       'ntfActionNetwork.syncJobStartTime' => strtotime("2000-11-11 00:00:00"),
       'ntfActionNetwork.syncJobEndTime' => strtotime("2000-11-11 00:00:11"),
     ]);

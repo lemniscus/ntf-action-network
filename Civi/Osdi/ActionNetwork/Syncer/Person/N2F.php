@@ -71,15 +71,24 @@ class N2F implements PersonSyncerInterface {
 
     $cutoff = \Civi::settings()->get('ntfActionNetwork.syncJobActNetModTimeCutoff');
     $cutoffWasRetrievedFromPreviousSync = !empty($cutoff);
+    Logger::logDebug('Horizon time was ' .
+      ($cutoffWasRetrievedFromPreviousSync ? '' : 'not') .
+      'retrieved from the previous sync'
+    );
 
-    if ($cutoffWasRetrievedFromPreviousSync) {
+    if (!$cutoffWasRetrievedFromPreviousSync) {
       $cutoffUnixTime = \Civi\Api4\OsdiPersonSyncState::get(FALSE)
         ->addSelect('MAX(remote_pre_sync_modified_time) AS maximum')
         ->addWhere('sync_origin', '=', PersonSyncState::ORIGIN_REMOTE)
         ->execute()->single()['maximum'];
+
+      Logger::logDebug('Maximum pre-syc mod times from previous AN->Civi syncs: '
+        . ($cutoffUnixTime ? RemoteSystem::formatDateTime($cutoffUnixTime) : 'NULL'));
+
       if (empty($cutoffUnixTime)) {
         $cutoffUnixTime = time() - 60;
       }
+
       $cutoffUnixTime--;
       $cutoff = RemoteSystem::formatDateTime($cutoffUnixTime);
     }
@@ -143,12 +152,25 @@ class N2F implements PersonSyncerInterface {
     }
 
     $cutoff = \Civi::settings()->get('ntfActionNetwork.syncJobCiviModTimeCutoff');
+    $cutoffWasRetrievedFromPreviousSync = !empty($cutoff);
+    Logger::logDebug('Horizon time was ' .
+      ($cutoffWasRetrievedFromPreviousSync ? '' : 'not') .
+      'retrieved from the previous sync'
+    );
 
-    if (empty($cutoff)) {
+    if (!$cutoffWasRetrievedFromPreviousSync) {
       $cutoffUnixTime = \Civi\Api4\OsdiPersonSyncState::get(FALSE)
         ->addSelect('MAX(local_pre_sync_modified_time) AS maximum')
         ->addWhere('sync_origin', '=', PersonSyncState::ORIGIN_LOCAL)
-        ->execute()->single()['maximum'] ?? time() - 60;
+        ->execute()->single()['maximum'];
+
+      Logger::logDebug('Maximum pre-sync mod time from previous Civi->AN syncs: '
+        . ($cutoffUnixTime ? RemoteSystem::formatDateTime($cutoffUnixTime) : 'NULL'));
+
+      if (empty($cutoffUnixTime)) {
+        $cutoffUnixTime = time() - 60;
+      }
+
       $cutoff = date('Y-m-d H:i:s', $cutoffUnixTime);
     }
 
@@ -237,10 +259,12 @@ class N2F implements PersonSyncerInterface {
     $count = ($i ?? -1) + 1;
     Logger::logDebug('Finished batch Civi->AN sync; count: ' . $count);
 
-    $mostRecentPreSyncModTime = $emailRecord['sync_state.local_pre_sync_modified_time'];
-    $newCutoff = date(
-      'Y-m-d H:i:s',
-      $mostRecentPreSyncModTime ?? $syncStartTime - 1);
+    $mostRecentPreSyncModTime = $emailRecord['contact.modified_date'];
+
+    Logger::logDebug('The most recent modification time of a Civi record in this' .
+      ' sync is ' . ($mostRecentPreSyncModTime ?: 'NULL'));
+
+    $newCutoff = $mostRecentPreSyncModTime ?: date('Y-m-d H:i:s', $syncStartTime - 1);
     Logger::logDebug("Setting horizon for next Civi->AN sync to $newCutoff");
 
     \Civi::settings()->add([
