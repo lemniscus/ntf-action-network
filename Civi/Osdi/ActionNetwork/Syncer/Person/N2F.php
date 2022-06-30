@@ -226,19 +226,6 @@ class N2F implements PersonSyncerInterface {
         ', mod ' . $localPerson->modifiedDate->get() .
         ', ' . $localPerson->emailEmail->get());
 
-      $doNotEmail = $localPerson->doNotEmail->get();
-      $emailOnHold = $localPerson->emailOnHold->get();
-      $emailIsDummy = 'noemail@' === substr($localPerson->emailEmail->get(), 0, 8);
-      $doNotSms = $localPerson->doNotSms->get();
-
-      if ($doNotEmail || $emailIsDummy || $emailOnHold) {
-        if ($doNotSms || empty($localPerson->smsPhonePhone->get())) {
-          Logger::logDebug('Skipping Civi id ' . $localPerson->getId() .
-            ' because they cannot be emailed or texted');
-          continue;
-        }
-      }
-
       //if ($emailRecord['count_contact_id'] > 1) {
       //  $outRow[$columnOffsets['match status']] = 'match error';
       //  $outRow[$columnOffsets['message']] = 'email is not unique in Civi';
@@ -327,6 +314,11 @@ class N2F implements PersonSyncerInterface {
 
   public function syncFromLocalIfNeeded(LocalPerson $localPerson): SyncResult {
     $pair = $this->getOrCreateLocalRemotePairFromLocal($localPerson);
+
+    if ('person has no qualifying email or phone' == $pair->getMessage()) {
+      return $pair->getSyncResult();
+    }
+
     if ('created matching object' == $pair->getMessage()) {
       return $pair->getSyncResult();
     }
@@ -403,6 +395,9 @@ class N2F implements PersonSyncerInterface {
     }
 
     elseif (MatchResult::NO_MATCH == $matchResult->getStatus()) {
+      if ($pair = $this->personHasNoQualifyingEmailOrPhone($localPerson, $matchResult)) {
+        return $pair;
+      }
       $syncResult = $this->oneWaySyncLocalObject($localPerson, NULL, $syncState);
       return $this->createLocalRemotePairFromSyncResult($syncResult);
     }
@@ -633,6 +628,35 @@ class N2F implements PersonSyncerInterface {
     if ($m = $person->modifiedDate->get()) {
       return strtotime($m);
     }
+    return NULL;
+  }
+
+  private function personHasNoQualifyingEmailOrPhone(LocalPerson $localPerson, MatchResult $matchResult): ?LocalRemotePair {
+    $localPerson->loadOnce();
+    $doNotEmail = $localPerson->doNotEmail->get();
+    $emailOnHold = $localPerson->emailOnHold->get();
+    $emailIsDummy = 'noemail@' === substr($localPerson->emailEmail->get(), 0, 8);
+    $doNotSms = $localPerson->doNotSms->get();
+
+    if ($doNotEmail || $emailIsDummy || $emailOnHold) {
+      if ($doNotSms || empty($localPerson->smsPhonePhone->get())) {
+        return new LocalRemotePair(
+          $localPerson,
+          NULL,
+          TRUE,
+          'person has no qualifying email or phone',
+          NULL,
+          $matchResult,
+          new SyncResult(
+            $localPerson,
+            NULL,
+            SyncResult::NO_SYNC_NEEDED,
+            'Civi contact cannot be emailed or texted',
+          )
+        );
+      }
+    }
+
     return NULL;
   }
 
