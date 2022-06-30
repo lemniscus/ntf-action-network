@@ -160,10 +160,11 @@ class NineToFive2022June implements MapperInterface {
     }
 
     $noSmsLocal = $l->isOptOut->get() || $l->doNotSms->get() || empty($localNumberNorm);
+    $remoteStatus = $r->phoneStatus->get();
 
-    if (!empty($localNumberNorm)) {
+    if (!$noSmsLocal && !empty($localNumberNorm)) {
       if ($localNumberNorm === $remoteNumberNorm) {
-        if (!$noSmsLocal && $r->phoneStatus->get() === 'unsubscribed') {
+        if (empty($remoteStatus) || $remoteStatus === 'unsubscribed') {
           $r->phoneStatus->set('subscribed');
         }
       }
@@ -175,7 +176,7 @@ class NineToFive2022June implements MapperInterface {
     }
 
     if ($noSmsLocal && !empty($remoteNumberNorm)) {
-      if ($r->phoneStatus->get() !== 'bouncing') {
+      if ($remoteStatus !== 'bouncing') {
         $r->phoneStatus->set('unsubscribed');
       }
     }

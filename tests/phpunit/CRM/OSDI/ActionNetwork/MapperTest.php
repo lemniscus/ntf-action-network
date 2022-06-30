@@ -230,7 +230,7 @@ class CRM_OSDI_ActionNetwork_NtF2022JuneMapperTest extends \PHPUnit\Framework\Te
       $result->emailStatus->get());
   }
 
-  public function testMapLocalToRemote_DoNotSms_PhoneShouldBeUnsubscribed() {
+  public function testMapLocalToRemote_DoNotSms_RemoteHasPhone_PhoneShouldBeUnsubscribed() {
     $existingRemotePerson = $this->getCookieCutterOsdiPerson();
     $civiContact = $this->getCookieCutterCiviContact();
     Civi\Api4\Contact::update(FALSE)
@@ -244,6 +244,17 @@ class CRM_OSDI_ActionNetwork_NtF2022JuneMapperTest extends \PHPUnit\Framework\Te
     );
     $this->assertEquals('unsubscribed',
       $result->phoneStatus->get());
+  }
+
+  public function testMapLocalToRemote_DoNotSms_BlankPhoneShouldStayBlank() {
+    $civiContact = $this->getCookieCutterCiviContact();
+    Civi\Api4\Contact::update(FALSE)
+      ->addWhere('id', '=', $civiContact['id'])
+      ->addValue('do_not_sms', TRUE)
+      ->execute();
+
+    $result = self::$mapper->mapLocalToRemote(new LocalPerson($civiContact['id']),);
+    $this->assertEmpty($result->phoneNumber->get());
   }
 
   public function testMapLocalToRemote_PhoneShouldBeUnsubscribed_NoSmsNumber() {
