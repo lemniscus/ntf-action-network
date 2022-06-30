@@ -224,10 +224,7 @@ class NineToFive2022June implements MapperInterface {
   }
 
   private function normalizePhoneNumber(?string $phoneNumber = ''): string {
-    $phoneNumber = preg_replace('/[^0-9]/', '', $phoneNumber);
-    $phoneNumber = preg_replace('/^1(\d{10})$/', '$1', $phoneNumber);
-    $phoneNumber = preg_replace('/^(\d{3})(\d{3})(\d{4})$/', '($1) $2-$3', $phoneNumber);
-    return $phoneNumber;
+    return RemotePerson::normalizePhoneNumber($phoneNumber);
   }
 
   public function mapLanguageFromActionNetwork(
