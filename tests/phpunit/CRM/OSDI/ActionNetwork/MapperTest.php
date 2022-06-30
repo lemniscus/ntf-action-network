@@ -11,7 +11,7 @@ use Civi\Test\TransactionalInterface;
  *
  * @group headless
  */
-class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\TestCase implements
+class CRM_OSDI_ActionNetwork_NtF2022JuneMapperTest extends \PHPUnit\Framework\TestCase implements
     HeadlessInterface,
     HookInterface,
     TransactionalInterface {
@@ -27,7 +27,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
   public static $system;
 
   /**
-   * @var \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022May
+   * @var \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June
    */
   public static $mapper;
 
@@ -55,7 +55,6 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
   }
 
   public function tearDown(): void {
-    $reset = $this->getCookieCutterOsdiPerson();
     parent::tearDown();
   }
 
@@ -79,7 +78,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
   }
 
   public static function createMapper(\Civi\Osdi\ActionNetwork\RemoteSystem $system) {
-    return new Civi\Osdi\ActionNetwork\Mapper\NineToFive2022May($system);
+    return new Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June($system);
   }
 
   public function makeBlankOsdiPerson(): \Civi\Osdi\ActionNetwork\Object\Person {
@@ -102,7 +101,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $person->postalCode->set('65542');
     $person->postalCountry->set('US');
     $person->languageSpoken->set('es');
-    return $person->save();
+    return $person;
   }
 
   private function getCookieCutterCiviContact(): array {
@@ -436,16 +435,15 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     self::assertNotEmpty($firstName = $existingLocalPersonLoaded->firstName->get());
     self::assertNotEmpty($existingLocalPersonLoaded->lastName->get());
 
-    $existingRemotePerson = $this->getCookieCutterOsdiPerson();
-    $existingRemotePerson->familyName->set(NULL);
-    $existingRemotePerson->postalLocality->set(NULL);
-    $sparserRemotePerson = $existingRemotePerson->save();
+    $remotePerson = $this->getCookieCutterOsdiPerson();
+    $remotePerson->familyName->set(NULL);
+    $remotePerson->postalLocality->set(NULL);
 
-    self::assertEmpty($sparserRemotePerson->familyName->get());
-    self::assertEmpty($sparserRemotePerson->postalLocality->get() ?? NULL);
+    self::assertEmpty($remotePerson->familyName->get());
+    self::assertEmpty($remotePerson->postalLocality->get() ?? NULL);
 
     $mappedLocalPerson = self::$mapper->mapRemoteToLocal(
-      $sparserRemotePerson,
+      $remotePerson,
       new LocalPerson($existingLocalContactId)
     );
 
@@ -456,59 +454,56 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
 
   public function testMapRemoteToExistingLocal_ChangeName() {
     $existingLocalContactId = $this->getCookieCutterCiviContact()['id'];
-    $existingRemotePerson = $this->getCookieCutterOsdiPerson();
-    $existingRemotePerson->givenName->set('DifferentFirst');
-    $existingRemotePerson->familyName->set('DifferentLast');
-    $alteredRemotePerson = $existingRemotePerson->save();
+    $remotePerson = $this->getCookieCutterOsdiPerson();
+    $remotePerson->givenName->set('DifferentFirst');
+    $remotePerson->familyName->set('DifferentLast');
 
     $mappedLocalPerson = self::$mapper->mapRemoteToLocal(
-      $alteredRemotePerson,
+      $remotePerson,
       new LocalPerson($existingLocalContactId)
     );
     $this->assertEquals('DifferentFirst', $mappedLocalPerson->firstName->get());
     $this->assertEquals('DifferentLast', $mappedLocalPerson->lastName->get());
     $this->assertEquals(
-      $existingRemotePerson->emailAddress->get(),
+      $remotePerson->emailAddress->get(),
       $mappedLocalPerson->emailEmail->get()
     );
     $this->assertEquals(
-      $existingRemotePerson->postalLocality->get(),
+      $remotePerson->postalLocality->get(),
       $mappedLocalPerson->addressCity->get()
     );
   }
 
   public function testMapRemoteToExistingLocal_ChangePhone() {
     $existingLocalContactId = $this->getCookieCutterCiviContact()['id'];
-    $existingRemotePerson = $this->getCookieCutterOsdiPerson();
+    $remotePerson = $this->getCookieCutterOsdiPerson();
 
-    self::assertNotEquals('19098887777', $existingRemotePerson->phoneNumber->get());
+    self::assertNotEquals('19098887777', $remotePerson->phoneNumber->get());
 
-    $existingRemotePerson->phoneNumber->set('19098887777');
-    $existingRemotePerson->phoneStatus->set('subscribed');
-    $alteredRemotePerson = $existingRemotePerson->save();
+    $remotePerson->phoneNumber->set('19098887777');
+    $remotePerson->phoneStatus->set('subscribed');
 
     $result = self::$mapper->mapRemoteToLocal(
-      $alteredRemotePerson,
+      $remotePerson,
       new LocalPerson($existingLocalContactId)
     );
     $this->assertEquals('19098887777', $result->smsPhonePhone->get());
-    $this->assertEquals($existingRemotePerson->givenName->get(), $result->firstName->get());
-    $this->assertEquals($existingRemotePerson->familyName->get(), $result->lastName->get());
+    $this->assertEquals($remotePerson->givenName->get(), $result->firstName->get());
+    $this->assertEquals($remotePerson->familyName->get(), $result->lastName->get());
   }
 
   public function testMapRemoteToExistingLocal_UnsubscribedPhone_SMSPhoneIsDeleted() {
     $existingLocalPerson = (new LocalPerson(
       $this->getCookieCutterCiviContact()['id']))->load();
-    $existingRemotePerson = $this->getCookieCutterOsdiPerson();
+    $remotePerson = $this->getCookieCutterOsdiPerson();
 
     self::assertNotEmpty($existingLocalPerson->smsPhoneId->get());
     self::assertEmpty($existingLocalPerson->nonSmsMobilePhoneId->get());
 
-    $existingRemotePerson->phoneStatus->set('unsubscribed');
-    $alteredRemotePerson = $existingRemotePerson->save();
+    $remotePerson->phoneStatus->set('unsubscribed');
 
     $result = self::$mapper->mapRemoteToLocal(
-      $alteredRemotePerson,
+      $remotePerson,
       $existingLocalPerson
     );
 
@@ -516,7 +511,7 @@ class CRM_OSDI_ActionNetwork_NtF2022MayMapperTest extends \PHPUnit\Framework\Tes
     $reloadedLocalPerson = (new LocalPerson($result->getId()))->load();
 
     self::assertEmpty($reloadedLocalPerson->smsPhoneId->get());
-    self::assertEquals($alteredRemotePerson->phoneNumber->get(),
+    self::assertEquals($remotePerson->phoneNumber->get(),
       $reloadedLocalPerson->nonSmsMobilePhonePhone->get());
   }
 
