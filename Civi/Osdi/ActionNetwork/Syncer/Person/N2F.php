@@ -331,7 +331,7 @@ class N2F implements PersonSyncerInterface {
       return $this->oneWaySyncLocalObject($localPerson, $pair->getRemoteObject(), $syncState);
     }
 
-    if ($postSyncModTime < $this->modTimeAsUnixTimestamp($localPerson)) {
+    if ($postSyncModTime < $this->modTimeAsUnixTimestamp($localPerson->loadOnce())) {
       return $this->oneWaySyncLocalObject($localPerson, $pair->getRemoteObject(), $syncState);
     }
 
