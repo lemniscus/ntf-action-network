@@ -486,6 +486,7 @@ class N2F implements PersonSyncerInterface {
     $localModifiedTime = $this->modTimeAsUnixTimestamp($localPerson);
     $remotePreSyncModifiedTime = $this->modTimeAsUnixTimestamp($remotePerson);
 
+    $remotePersonBeforeSync = clone $remotePerson;
     $remotePerson = $this->getMapper()->mapLocalToRemote(
       $localPerson, $remotePerson);
 
@@ -493,9 +494,13 @@ class N2F implements PersonSyncerInterface {
       $saveResult = $this->getRemoteSystem()->trySave($remotePerson);
       /** @var \Civi\Osdi\ActionNetwork\Object\Person $remotePerson */
       $remotePerson = $saveResult->getReturnedObject();
-      $statusMessage = empty($remotePreSyncModifiedTime)
-        ? 'created new AN person'
-        : 'altered existing AN person';
+      if (empty($remotePreSyncModifiedTime)) {
+        $statusMessage = 'created new AN person';
+      }
+      else {
+        $statusMessage = 'altered existing AN person' . PHP_EOL
+        . print_r(RemotePerson::diff($remotePersonBeforeSync, $remotePerson)->toArray());
+      }
       $remotePostSyncModifiedTime = $this->modTimeAsUnixTimestamp($remotePerson);
     }
     else {
@@ -509,13 +514,10 @@ class N2F implements PersonSyncerInterface {
       $statusCode = SyncResult::ERROR;
       $statusMessage = 'problem when saving Action Network person: '
         . $saveResult->getMessage();
-      $context = ['contact id' => $localPerson->getId()];
-      if ($exception = $saveResult->getContext()['exception'] ?? NULL) {
-        $context['exception'] = $exception;
-      }
-      else {
-        $context['context'] = $context;
-      }
+
+      $context = $saveResult->getContext();
+      $context = is_array($context) ? $context : [$context];
+      $context['contact id'] = $localPerson->getId();
       Logger::logError("OSDI Client sync error: $statusMessage", $context);
     }
 
@@ -537,7 +539,7 @@ class N2F implements PersonSyncerInterface {
       $statusCode,
       $statusMessage,
       $syncState,
-      $saveResult->isError() ? $saveResult->getContext() : NULL
+      $saveResult->isError() ? $context : NULL
     );
   }
 
