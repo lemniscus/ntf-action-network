@@ -235,7 +235,8 @@ class N2F implements PersonSyncerInterface {
 
       $syncResult = $this->syncFromLocalIfNeeded($localPerson);
       Logger::logDebug('Result for  Civi id ' . $localPerson->getId() .
-        ': ' . $syncResult->getStatusCode() . ' - ' . $syncResult->getMessage());
+        ': ' . $syncResult->getStatusCode() . ' - ' . $syncResult->getMessage()
+        . PHP_EOL . print_r($syncResult->getContext()));
     }
 
     if ($upToDate ?? FALSE) {
@@ -486,7 +487,6 @@ class N2F implements PersonSyncerInterface {
     $localModifiedTime = $this->modTimeAsUnixTimestamp($localPerson);
     $remotePreSyncModifiedTime = $this->modTimeAsUnixTimestamp($remotePerson);
 
-    $remotePersonBeforeSync = clone $remotePerson;
     $remotePerson = $this->getMapper()->mapLocalToRemote(
       $localPerson, $remotePerson);
 
@@ -498,8 +498,8 @@ class N2F implements PersonSyncerInterface {
         $statusMessage = 'created new AN person';
       }
       else {
-        $statusMessage = 'altered existing AN person' . PHP_EOL
-        . print_r(RemotePerson::diff($remotePersonBeforeSync, $remotePerson)->toArray());
+        $statusMessage = 'altered existing AN person';
+        $context = $saveResult->getContext();
       }
       $remotePostSyncModifiedTime = $this->modTimeAsUnixTimestamp($remotePerson);
     }
@@ -539,7 +539,7 @@ class N2F implements PersonSyncerInterface {
       $statusCode,
       $statusMessage,
       $syncState,
-      $saveResult->isError() ? $context : NULL
+      $context ?? NULL
     );
   }
 
