@@ -195,8 +195,9 @@ class N2FReconciliationRunner {
       $this->saveRecordsAndWriteToCsv($remotePerson, $localPerson, $outRow);
     }
 
+    ftruncate($this->statusFile, 0);
     rewind($this->statusFile);
-    fwrite($this->statusFile, "$i CSV rows processed");
+    fwrite($this->statusFile, "$i of $totalRows CSV rows processed");
   }
 
   private function processUnmatchedCiviEmails(): void {
