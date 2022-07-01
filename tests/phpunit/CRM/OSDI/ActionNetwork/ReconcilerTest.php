@@ -189,6 +189,12 @@ class CRM_OSDI_ActionNetwork_ReconcilerTest extends \PHPUnit\Framework\TestCase 
   public function testReconcileCsvInputAndOutput() {
     $this->createAndSave8LocalPeople();
 
+    $createdContact = \Civi\Api4\Email::get(FALSE)
+      ->addWhere('email', '=', 'wwinning@comcast.net')
+      ->execute()->first()['contact_id'] ?? NULL;
+
+    self::assertNull($createdContact);
+
     $main = new \Civi\Osdi\ActionNetwork\N2FReconciliationRunner();
     $main->setInput(__DIR__ . '/reconciliationTestCSVInput.csv');
     $pathForActualOutput = __DIR__ . '/reconciliationTestOutput.csv';
@@ -198,6 +204,12 @@ class CRM_OSDI_ActionNetwork_ReconcilerTest extends \PHPUnit\Framework\TestCase 
     $pathForExpectedOutput = __DIR__ . '/reconciliationTestExpectedOutput.csv';
 
     $this->assertCSVsAreEquivalent($pathForExpectedOutput, $pathForActualOutput);
+
+    $createdContact = \Civi\Api4\Email::get(FALSE)
+      ->addWhere('email', '=', 'wwinning@comcast.net')
+      ->execute()->first()['contact_id'] ?? NULL;
+
+    self::assertNotEmpty($createdContact);
   }
 
   public function testReconcileCsvInputAndOutput_Resume() {
@@ -218,6 +230,32 @@ class CRM_OSDI_ActionNetwork_ReconcilerTest extends \PHPUnit\Framework\TestCase 
     $pathForExpectedOutput = __DIR__ . '/reconciliationTestExpectedOutput.csv';
 
     $this->assertCSVsAreEquivalent($pathForExpectedOutput, $pathForActualOutput);
+  }
+
+  public function testReconcileCsvInputAndOutput_DryRun() {
+    $this->createAndSave8LocalPeople();
+
+    $createdContact = \Civi\Api4\Email::get(FALSE)
+      ->addWhere('email', '=', 'wwinning@comcast.net')
+      ->execute()->first()['contact_id'] ?? NULL;
+
+    self::assertNull($createdContact);
+
+    $main = new \Civi\Osdi\ActionNetwork\N2FReconciliationRunner();
+    $main->setInput(__DIR__ . '/reconciliationTestCSVInput.csv');
+    $pathForActualOutput = __DIR__ . '/reconciliationTestOutput.csv';
+    $main->setOutput($pathForActualOutput);
+    $main->dryrun(TRUE);
+
+    $pathForExpectedOutput = __DIR__ . '/reconciliationTestExpectedOutput.csv';
+
+    $this->assertCSVsAreEquivalent($pathForExpectedOutput, $pathForActualOutput);
+
+    $createdContact = \Civi\Api4\Email::get(FALSE)
+      ->addWhere('email', '=', 'wwinning@comcast.net')
+      ->execute()->first()['contact_id'] ?? NULL;
+
+    self::assertNull($createdContact);
   }
 
   private function createAndSave8LocalPeople(): void {

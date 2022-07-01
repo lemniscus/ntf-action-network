@@ -38,6 +38,8 @@ class N2FReconciliationRunner {
 
   private int $csvRowsPreviouslyProcessed = 0;
 
+  private bool $dryRun;
+
   public function __construct($system = NULL) {
     if (is_null($system)) {
       $osdiClientExtDir = dirname(\CRM_Extension_System::singleton()
@@ -51,6 +53,7 @@ class N2FReconciliationRunner {
     $this->columnOffsets = $columnOffsets = array_flip($header);
     $this->emptyOutRow = array_fill(0, count($header), NULL);
     $this->processedActNetIds = $this->processedCiviIds = [];
+    $this->dryRun = FALSE;
   }
 
   public function setInput(string $path) {
@@ -61,7 +64,14 @@ class N2FReconciliationRunner {
     $this->outputFilePath = $path;
   }
 
+  public function dryrun($reset = FALSE) {
+    $this->dryRun = TRUE;
+    $this->run($reset);
+  }
+
   public function run($reset = FALSE) {
+    fwrite(STDERR, date(DATE_ATOM));
+
     $this->setUpInputAndOutputFiles($reset);
 
     if ($reset || !$this->isFinishedProcessingCSVInput) {
@@ -74,7 +84,9 @@ class N2FReconciliationRunner {
   }
 
   private function setUpInputAndOutputFiles(bool $reset): void {
-    $this->statusFile = fopen(sys_get_temp_dir() . '/n2f_reconciliation_status', 'r+');
+    $statusFilePath = sys_get_temp_dir() . '/n2f_reconciliation_status';
+    touch($statusFilePath);
+    $this->statusFile = fopen($statusFilePath, 'r+');
 
     if ($reset) {
       $this->out = Writer::createFromPath($this->outputFilePath, 'w+');
@@ -457,8 +469,7 @@ class N2FReconciliationRunner {
     LocalPerson $localPerson,
     array $outRow): array {
     $errorMessage = $errorContext = NULL;
-
-    if ($remotePerson->isAltered()) {
+    if (!$this->dryRun && $remotePerson->isAltered()) {
       try {
         $actNetResult = $this->system->trySave($remotePerson);
         if ($actNetResult->isError()) {
@@ -472,7 +483,7 @@ class N2FReconciliationRunner {
       }
     }
 
-    if ($localPerson->isAltered() && is_null($errorMessage) && is_null($errorContext)) {
+    if (!$this->dryRun && $localPerson->isAltered() && is_null($errorMessage) && is_null($errorContext)) {
       try {
         $civiRecordIsNew = empty($localPerson->getId());
         $localPerson->save();
