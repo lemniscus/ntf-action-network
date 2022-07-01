@@ -116,10 +116,10 @@ class NineToFive2022June implements MapperInterface {
       if (!$zipIsDummy) {
         $localPerson->addressStreetAddress->set($remotePerson->postalStreet->get());
         $localPerson->addressCity->set($remotePerson->postalLocality->get());
-        $localPerson->addressStateProvinceId->set($stateId);
         $localPerson->addressPostalCode->set($zip);
-        $localPerson->addressCountryId->set($countryId);
       }
+      $localPerson->addressStateProvinceId->set($stateId);
+      $localPerson->addressCountryId->set($countryId);
     }
     return $localPerson;
   }
