@@ -136,6 +136,7 @@ class N2FReconciliationRunner {
 
       if (($i % 100) === 0) {
         ftruncate($this->statusFile, 0);
+        rewind($this->statusFile);
         fwrite($this->statusFile, "$i of $totalRows CSV rows processed");
       }
 
@@ -208,6 +209,7 @@ class N2FReconciliationRunner {
     foreach ($civiEmails as $i => $emailRecord) {
       if ($i % 100 === 0) {
         ftruncate($this->statusFile, 0);
+        rewind($this->statusFile);
         fwrite($this->statusFile, $csvInputFinalStatus . ($i + 1) .
           " of $totalEmails Civi records processed");
       }
