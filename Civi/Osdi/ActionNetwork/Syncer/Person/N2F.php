@@ -236,7 +236,7 @@ class N2F implements PersonSyncerInterface {
       $syncResult = $this->syncFromLocalIfNeeded($localPerson);
       Logger::logDebug('Result for  Civi id ' . $localPerson->getId() .
         ': ' . $syncResult->getStatusCode() . ' - ' . $syncResult->getMessage()
-        . PHP_EOL . print_r($syncResult->getContext()));
+        . PHP_EOL . print_r($syncResult->getContext(), TRUE));
     }
 
     if ($upToDate ?? FALSE) {
