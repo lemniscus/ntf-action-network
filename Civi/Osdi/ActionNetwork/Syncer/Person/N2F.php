@@ -285,7 +285,7 @@ class N2F implements PersonSyncerInterface {
         SyncResult::ERROR,
         'Match error: ' . $pair->getMatchResult()->getMessage(),
         NULL,
-        $pair->getMatchResult()
+        $pair->getMatchResult()->getContext()
       );
     }
 
