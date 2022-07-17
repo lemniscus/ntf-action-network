@@ -2,8 +2,6 @@
 
 namespace Civi\Osdi\ActionNetwork\Syncer\Person;
 
-use Civi\Api4\OsdiPersonSyncState;
-use Civi\Core\Lock\NullLock;
 use Civi\Osdi\ActionNetwork\Logger;
 use Civi\Osdi\ActionNetwork\Object\Person as RemotePerson;
 use Civi\Osdi\ActionNetwork\RemoteSystem;
