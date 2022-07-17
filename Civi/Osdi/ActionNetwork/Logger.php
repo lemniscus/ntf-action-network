@@ -8,7 +8,7 @@ class Logger {
     $priority = self::mapPriority(\Psr\Log\LogLevel::ERROR);
 
     if (!empty($context)) {
-      if (isset($context['exception'])) {
+      if (is_array($context) && isset($context['exception'])) {
         $context['exception'] = \CRM_Core_Error::formatTextException($context['exception']);
       }
       $message .= "\n" . print_r($context, 1);
