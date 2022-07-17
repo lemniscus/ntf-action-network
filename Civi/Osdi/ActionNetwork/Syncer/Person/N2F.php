@@ -123,8 +123,12 @@ class N2F implements PersonSyncerInterface {
         Logger::logError($e->getMessage(), ['exception' => $e]);
       }
 
+      $codeAndMessage = $syncResult->getStatusCode() . ' - ' . $syncResult->getMessage();
       Logger::logDebug('Result for  AN id ' . $remotePerson->getId() .
-      ': ' . $syncResult->getStatusCode() . ' - ' . $syncResult->getMessage());
+        ": $codeAndMessage");
+      if ($syncResult->isError()) {
+        Logger::logError($codeAndMessage, $syncResult->getContext());
+      }
     }
 
     Logger::logDebug('Finished batch AN->Civi sync; count: ' . $searchResults->rawCurrentCount());
