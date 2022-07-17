@@ -115,6 +115,12 @@ class N2F implements PersonSyncerInterface {
         ', mod ' . $remotePerson->modifiedDate->get() .
         ', ' . $remotePerson->emailAddress->get());
 
+      if ('2c8f5384-0476-4aaa-aee4-471805c48a54' === $remotePerson->getId()) {
+        Logger::logDebug('Skipping    AN id ' . $remotePerson->getId() .
+          ': special record');
+        continue;
+      }
+
       try {
         $syncResult = $this->syncFromRemoteIfNeeded($remotePerson);
       }
