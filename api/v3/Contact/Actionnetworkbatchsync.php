@@ -38,15 +38,16 @@ function civicrm_api3_contact_Actionnetworkbatchsync(array $params): array {
 
   $system = new Civi\Osdi\ActionNetwork\RemoteSystem($systemProfile, $client);
 
-  $syncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2F($system);
+  $syncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2FSingle($system);
   $syncer->setMatcher(
     new \Civi\Osdi\ActionNetwork\Matcher\OneToOneEmailOrFirstLastEmail(
       $syncer, \Civi\Osdi\LocalObject\Person\N2F::class));
   $syncer->setMapper(new \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June($system));
+  $batchSyncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2FBatch($syncer);
 
   try {
-    $countFromRemote = $syncer->batchSyncFromRemote();
-    $countFromLocal = $syncer->batchSyncFromLocal();
+    $countFromRemote = $batchSyncer->batchSyncFromRemote();
+    $countFromLocal = $batchSyncer->batchSyncFromLocal();
   }
   catch (Throwable $e) {
     return civicrm_api3_create_error(

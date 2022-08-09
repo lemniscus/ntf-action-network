@@ -11,7 +11,7 @@ use \League\Csv\Reader;
  *
  * @group headless
  */
-class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase implements
+class CRM_OSDI_ActionNetwork_Syncer_Person_NTFBatchTest extends \PHPUnit\Framework\TestCase implements
     HeadlessInterface,
     HookInterface,
     TransactionalInterface {
@@ -112,97 +112,6 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
     self::assertGreaterThan(25, $result->rawCurrentCount());
   }
 
-  public function testSyncFromANIfNeeded() {
-    $remotePerson = new \Civi\Osdi\ActionNetwork\Object\Person(self::$system);
-    $remotePerson->emailAddress->set('testSyncFromANIfNeeded@null.net');
-    $remotePerson->givenName->set('Test');
-    $remotePerson->familyName->set('Sync From AN If Needed');
-    $remotePerson->postalCode->set('59801');
-    $remotePerson->save();
-
-    $syncState = \Civi\Osdi\PersonSyncState::getForRemotePerson($remotePerson, NULL);
-
-    self::assertEmpty($syncState->getId());
-
-    $syncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2F(self::$system);
-    $syncer->setMatcher(new \Civi\Osdi\ActionNetwork\Matcher\OneToOneEmailOrFirstLastEmail($syncer, NULL));
-    $syncer->setMapper(new \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June(self::$system));
-    $syncResult = $syncer->syncFromRemoteIfNeeded($remotePerson);
-
-    self::assertEquals(\Civi\Osdi\SyncResult::class, get_class($syncResult));
-
-    $localPerson = $syncResult->getLocalObject();
-    $syncStateId = $syncResult->getState()->getId();
-
-    self::assertEquals($syncResult::SUCCESS, $syncResult->getStatusCode());
-    self::assertEqualsIgnoringCase(
-      'testSyncFromANIfNeeded@null.net',
-      $localPerson->emailEmail->get());
-    self::assertNotEquals(
-      '94110',
-      $localPerson->addressPostalCode->get());
-    self::assertGreaterThan(0, $syncStateId);
-
-    $syncResult = $syncer->syncFromRemoteIfNeeded($remotePerson);
-
-    self::assertEquals($syncResult::NO_SYNC_NEEDED, $syncResult->getStatusCode());
-
-    $remotePerson->postalCode->set('94110');
-    $remotePerson->save();
-    $syncResult = $syncer->syncFromRemoteIfNeeded($remotePerson);
-
-    self::assertEquals($syncResult::SUCCESS, $syncResult->getStatusCode());
-    self::assertEquals(
-      '94110',
-      $syncResult->getLocalObject()->addressPostalCode->get());
-  }
-
-  public function testSyncFromCiviIfNeeded() {
-    $localPerson = new LocalPerson();
-    $localPerson->emailEmail->set('testSyncFromCiviIfNeeded@null.net');
-    $localPerson->firstName->set('Test');
-    $localPerson->lastName->set('Sync From Civi If Needed');
-    $localPerson->addressPostalCode->set('59801');
-    $localPerson->save();
-
-    $syncState = \Civi\Osdi\PersonSyncState::getForLocalPerson($localPerson, NULL);
-
-    self::assertEmpty($syncState->getId());
-
-    $syncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2F(self::$system);
-    $syncer->setMatcher(new \Civi\Osdi\ActionNetwork\Matcher\OneToOneEmailOrFirstLastEmail($syncer, NULL));
-    $syncer->setMapper(new \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June(self::$system));
-    $syncResult = $syncer->syncFromLocalIfNeeded($localPerson);
-
-    self::assertEquals(\Civi\Osdi\SyncResult::class, get_class($syncResult));
-
-    $remotePerson = $syncResult->getRemoteObject();
-    $syncStateId = $syncResult->getState()->getId();
-
-    self::assertEquals($syncResult::SUCCESS, $syncResult->getStatusCode());
-    self::assertEqualsIgnoringCase(
-      'testSyncFromCiviIfNeeded@null.net',
-      $remotePerson->emailAddress->get());
-    self::assertNotEquals(
-      '94110',
-      $remotePerson->postalCode->get());
-    self::assertGreaterThan(0, $syncStateId);
-
-    $syncResult = $syncer->syncFromLocalIfNeeded($localPerson);
-
-    self::assertEquals($syncResult::NO_SYNC_NEEDED, $syncResult->getStatusCode());
-
-    sleep(1);
-    $localPerson->addressPostalCode->set('94110');
-    $localPerson->save();
-    $syncResult = $syncer->syncFromLocalIfNeeded($localPerson);
-
-    self::assertEquals($syncResult::SUCCESS, $syncResult->getStatusCode());
-    self::assertEquals(
-      '94110',
-      $syncResult->getRemoteObject()->postalCode->get());
-  }
-
   public function testBatchSyncFromANDoesNotRunConcurrently() {
     $remotePerson = new \Civi\Osdi\ActionNetwork\Object\Person(self::$system);
     $remotePerson->emailAddress->set($email = "syncjobtest-no-concurrent@null.org");
@@ -215,12 +124,13 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
       'ntfActionNetwork.syncJobEndTime' => NULL,
     ]);
 
-    $syncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2F(self::$system);
-    $syncer->setMatcher(
+    $singleSyncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2FSingle(self::$system);
+    $singleSyncer->setMatcher(
       new \Civi\Osdi\ActionNetwork\Matcher\OneToOneEmailOrFirstLastEmail(
-        $syncer, LocalPerson::class));
-    $syncer->setMapper(new \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June(self::$system));
-    $syncer->batchSyncFromRemote();
+        $singleSyncer, LocalPerson::class));
+    $singleSyncer->setMapper(new \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June(self::$system));
+    $batchSyncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2FBatch($singleSyncer);
+    $batchSyncer->batchSyncFromRemote();
     $syncedContactCount = \Civi\Api4\Email::get(FALSE)
       ->addWhere('email', '=', $email)
       ->execute()->count();
@@ -229,7 +139,7 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
 
     Civi::settings()->set('ntfActionNetwork.syncJobProcessId', 9999999999999);
     sleep(1);
-    $syncer->batchSyncFromRemote();
+    $batchSyncer->batchSyncFromRemote();
     $syncedContactCount = \Civi\Api4\Email::get(FALSE)
       ->addWhere('email', '=', $email)
       ->execute()->count();
@@ -242,12 +152,13 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
 
     $syncStartTime = time();
 
-    $syncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2F(self::$system);
-    $syncer->setMatcher(
+    $singleSyncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2FSingle(self::$system);
+    $singleSyncer->setMatcher(
       new \Civi\Osdi\ActionNetwork\Matcher\OneToOneEmailOrFirstLastEmail(
-        $syncer, LocalPerson::class));
-    $syncer->setMapper(new \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June(self::$system));
-    $syncer->batchSyncFromRemote();
+        $singleSyncer, LocalPerson::class));
+    $singleSyncer->setMapper(new \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June(self::$system));
+    $batchSyncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2FBatch($singleSyncer);
+    $batchSyncer->batchSyncFromRemote();
 
     $this->assertBatchSyncFromAN($localPeople, $syncStartTime);
   }
@@ -257,12 +168,13 @@ class CRM_OSDI_ActionNetwork_SyncJobTest extends \PHPUnit\Framework\TestCase imp
 
     $syncStartTime = time();
 
-    $syncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2F(self::$system);
-    $syncer->setMatcher(
+    $singleSyncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2FSingle(self::$system);
+    $singleSyncer->setMatcher(
       new \Civi\Osdi\ActionNetwork\Matcher\OneToOneEmailOrFirstLastEmail(
-        $syncer, LocalPerson::class));
-    $syncer->setMapper(new \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June(self::$system));
-    $syncer->batchSyncFromLocal();
+        $singleSyncer, LocalPerson::class));
+    $singleSyncer->setMapper(new \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June(self::$system));
+    $batchSyncer = new \Civi\Osdi\ActionNetwork\Syncer\Person\N2FBatch($singleSyncer);
+    $batchSyncer->batchSyncFromLocal();
 
     $this->assertBatchSyncFromCivi($remotePeople, $syncStartTime, $maxRemoteModTimeBeforeSync);
   }
