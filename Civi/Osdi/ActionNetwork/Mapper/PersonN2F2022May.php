@@ -7,7 +7,7 @@ use Civi\Osdi\LocalObject\Person\N2F as LocalPerson;
 use Civi\Osdi\RemoteSystemInterface;
 use CRM_NtfActionNetwork_ExtensionUtil as E;
 
-class NineToFive2022May {
+class PersonN2F2022May {
 
   private RemoteSystemInterface $remoteSystem;
 

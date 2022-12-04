@@ -1,23 +1,26 @@
 <?php
 
-use CRM_OSDI_ActionNetwork_Fixture as Fixture;
-use Civi\Osdi\LocalObject\Person\N2F as LocalPerson;
+namespace Civi\Osdi\ActionNetwork\Mapper;
+
+use Civi;
+use Civi\Osdi\LocalObject\PersonN2F as LocalPerson;
 use Civi\Test\HeadlessInterface;
 use Civi\Test\HookInterface;
 use Civi\Test\TransactionalInterface;
+use CRM_OSDI_ActionNetwork_Fixture as Fixture;
+use CRM_OSDI_ActionNetwork_TestUtils;
 
 /**
- * Test \Civi\Osdi\RemoteSystemInterface
- *
  * @group headless
  */
-class CRM_OSDI_ActionNetwork_NtF2022JuneMapperTest extends \PHPUnit\Framework\TestCase implements
+class N2F2022JuneTest extends \PHPUnit\Framework\TestCase implements
     HeadlessInterface,
     HookInterface,
     TransactionalInterface {
 
   /**
-   * @var array{Contact: array, OptionGroup: array, OptionValue: array, CustomGroup: array, CustomField: array}
+   * @var array{Contact: array, OptionGroup: array, OptionValue: array,
+   *   CustomGroup: array, CustomField: array}
    */
   private static $createdEntities = [];
 
@@ -27,7 +30,7 @@ class CRM_OSDI_ActionNetwork_NtF2022JuneMapperTest extends \PHPUnit\Framework\Te
   public static $system;
 
   /**
-   * @var \Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June
+   * @var \Civi\Osdi\ActionNetwork\Mapper\PersonN2F2022June
    */
   public static $mapper;
 
@@ -39,7 +42,7 @@ class CRM_OSDI_ActionNetwork_NtF2022JuneMapperTest extends \PHPUnit\Framework\Te
   }
 
   public static function setUpBeforeClass(): void {
-    $osdiClientExtDir = dirname(CRM_Extension_System::singleton()
+    $osdiClientExtDir = dirname(\CRM_Extension_System::singleton()
       ->getMapper()->keyToPath('osdi-client'));
     require_once "$osdiClientExtDir/tests/phpunit/CRM/OSDI/ActionNetwork/TestUtils.php";
 
@@ -78,7 +81,7 @@ class CRM_OSDI_ActionNetwork_NtF2022JuneMapperTest extends \PHPUnit\Framework\Te
   }
 
   public static function createMapper(\Civi\Osdi\ActionNetwork\RemoteSystem $system) {
-    return new Civi\Osdi\ActionNetwork\Mapper\NineToFive2022June($system);
+    return new Civi\Osdi\ActionNetwork\Mapper\PersonN2F2022June($system);
   }
 
   public function makeBlankOsdiPerson(): \Civi\Osdi\ActionNetwork\Object\Person {
@@ -179,7 +182,10 @@ class CRM_OSDI_ActionNetwork_NtF2022JuneMapperTest extends \PHPUnit\Framework\Te
     $civiContact = $this->getCookieCutterCiviContact();
     Civi\Api4\Contact::update(0)
       ->addWhere('id', '=', $civiContact['id'])
-      ->setValues(['first_name' => 'DifferentFirst', 'last_name' => 'DifferentLast'])
+      ->setValues([
+        'first_name' => 'DifferentFirst',
+        'last_name' => 'DifferentLast',
+      ])
       ->execute();
 
     $result = self::$mapper->mapLocalToRemote(
@@ -253,7 +259,7 @@ class CRM_OSDI_ActionNetwork_NtF2022JuneMapperTest extends \PHPUnit\Framework\Te
       ->addValue('do_not_sms', TRUE)
       ->execute();
 
-    $result = self::$mapper->mapLocalToRemote(new LocalPerson($civiContact['id']),);
+    $result = self::$mapper->mapLocalToRemote(new LocalPerson($civiContact['id']));
     $this->assertEmpty($result->phoneNumber->get());
   }
 
@@ -359,7 +365,7 @@ class CRM_OSDI_ActionNetwork_NtF2022JuneMapperTest extends \PHPUnit\Framework\Te
     try {
       $result = self::$mapper->mapLocalToRemote(new LocalPerson($cid));
     }
-    catch (Throwable $e) {
+    catch (\Throwable $e) {
       self::fail($e->getMessage());
     }
     finally {
@@ -394,7 +400,7 @@ class CRM_OSDI_ActionNetwork_NtF2022JuneMapperTest extends \PHPUnit\Framework\Te
     try {
       $result = self::$mapper->mapLocalToRemote(new LocalPerson($cid));
     }
-    catch (Throwable $e) {
+    catch (\Throwable $e) {
       self::fail($e->getMessage());
     }
     finally {
@@ -418,7 +424,7 @@ class CRM_OSDI_ActionNetwork_NtF2022JuneMapperTest extends \PHPUnit\Framework\Te
     $stateName = 'Missouri';
 
     $result = self::$mapper->mapRemoteToLocal($remotePerson);
-    $this->assertEquals(\Civi\Osdi\LocalObject\Person\N2F::class, get_class($result));
+    $this->assertEquals(LocalPerson::class, get_class($result));
     $cid = $result->save()->getId();
     $resultContact = Civi\Api4\Contact::get(0)
       ->addWhere('id', '=', $cid)

@@ -3,14 +3,16 @@
 namespace Civi\Osdi\ActionNetwork\Mapper;
 
 use Civi\Osdi\ActionNetwork\Object\Person as RemotePerson;
-use Civi\Osdi\LocalObject\LocalObjectInterface;
-use Civi\Osdi\LocalObject\Person\N2F as LocalPerson;
+use Civi\Osdi\LocalObject\PersonN2F as LocalPerson;
+use Civi\Osdi\LocalObjectInterface;
+use Civi\Osdi\LocalRemotePair;
 use Civi\Osdi\MapperInterface;
 use Civi\Osdi\RemoteObjectInterface;
 use Civi\Osdi\RemoteSystemInterface;
+use Civi\Osdi\Result\Map as MapResult;
 use CRM_NtfActionNetwork_ExtensionUtil as E;
 
-class NineToFive2022June implements MapperInterface {
+class PersonN2F2022June implements MapperInterface {
 
   private RemoteSystemInterface $remoteSystem;
 
@@ -18,10 +20,30 @@ class NineToFive2022June implements MapperInterface {
     $this->remoteSystem = $remoteSystem;
   }
 
+  public function mapOneWay(LocalRemotePair $pair): MapResult {
+    $result = new MapResult();
+
+    try {
+      if ($pair->isOriginLocal()) {
+        $this->mapLocalToRemote($pair->getLocalObject(), $pair->getRemoteObject());
+      }
+      else {
+        $this->mapRemoteToLocal($pair->getRemoteObject(), $pair->getLocalObject());
+      }
+      $result->setStatusCode($result::SUCCESS);
+    }
+    catch (\Throwable $exception) {
+      $result->setStatusCode($result::ERROR);
+    }
+
+    $pair->getResultStack()->push($result);
+    return $result;
+  }
+
   public function mapLocalToRemote(LocalObjectInterface $localPerson,
       RemoteObjectInterface $remotePerson = NULL): RemotePerson {
 
-    /** @var \Civi\Osdi\LocalObject\Person\N2F $l */
+    /** @var \Civi\Osdi\LocalObject\PersonN2F $l */
     /** @var \Civi\Osdi\ActionNetwork\Object\Person $remotePerson */
 
     $l = $localPerson->loadOnce();
@@ -35,7 +57,7 @@ class NineToFive2022June implements MapperInterface {
       $remotePerson->languageSpoken->set($languageMap[$language] ?? '');
     }
 
-    $localEmailAddress = $l->emailEmail->get();
+    $localEmailAddress = $l->emailEmail->get() ?? '';
     $remotePerson->emailAddress->set($localEmailAddress);
 
     $emailIsDummy = 'noemail@' === substr($localEmailAddress, 0, 8);
@@ -48,7 +70,9 @@ class NineToFive2022June implements MapperInterface {
 
     $this->mapPhoneFromLocalToRemote($l, $remotePerson);
 
-    if (empty($zipForActNet = $l->addressPostalCode->get())) {
+    $zipForActNet = $l->addressPostalCode->get();
+
+    if (empty($zipForActNet)) {
       $dummyZip = $this->addRealZipOrReturnDummy($l);
       if ($dummyZip) {
         $zipForActNet = $dummyZip;
@@ -75,7 +99,7 @@ class NineToFive2022June implements MapperInterface {
   public function mapRemoteToLocal(RemoteObjectInterface $remotePerson,
       LocalObjectInterface $localPerson = NULL): LocalPerson {
 
-    /** @var \Civi\Osdi\LocalObject\Person\N2F $localPerson */
+    /** @var \Civi\Osdi\LocalObject\PersonN2F $localPerson */
     /** @var \Civi\Osdi\ActionNetwork\Object\Person $remotePerson */
 
     $localPerson = $localPerson ?? new LocalPerson();
@@ -240,9 +264,6 @@ class NineToFive2022June implements MapperInterface {
     return $localPerson->individualLanguagesSpoken->get();
   }
 
-  /**
-   * @return void
-   */
   public static function getZipMap(): array {
     static $zipMap;
     if (!isset($zipMap)) {
