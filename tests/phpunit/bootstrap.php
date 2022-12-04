@@ -1,5 +1,11 @@
 <?php
 
+preg_match('#^(.+/)[^/]+/tests/phpunit/#', __FILE__, $matches);
+if (empty($matches[1])) {
+  throw new Exception(__FILE__ . ':' . __LINE__);
+}
+$osdiClientExtDir = $matches[1] . 'osdi-client';
+
 ini_set('memory_limit', '2G');
 
 // phpcs:disable
@@ -11,6 +17,9 @@ $loader->add('CRM_', __DIR__);
 $loader->add('Civi\\', __DIR__);
 $loader->add('api_', __DIR__);
 $loader->add('api\\', __DIR__);
+$loader->add('CRM_', "$osdiClientExtDir/tests/phpunit");
+$loader->add('Civi\\', "$osdiClientExtDir/tests/phpunit");
+
 $loader->register();
 
 /**
