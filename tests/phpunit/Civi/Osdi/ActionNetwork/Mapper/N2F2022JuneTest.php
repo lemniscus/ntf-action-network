@@ -42,13 +42,9 @@ class N2F2022JuneTest extends \PHPUnit\Framework\TestCase implements
   }
 
   public static function setUpBeforeClass(): void {
-    $osdiClientExtDir = dirname(\CRM_Extension_System::singleton()
-      ->getMapper()->keyToPath('osdi-client'));
-    require_once "$osdiClientExtDir/tests/phpunit/CRM/OSDI/ActionNetwork/TestUtils.php";
-
-    self::setUpCustomConfig();
     self::$system = CRM_OSDI_ActionNetwork_TestUtils::createRemoteSystem();
     self::$mapper = self::createMapper(self::$system);
+    self::setUpCustomConfig();
 
     parent::setUpBeforeClass();
   }
