@@ -474,9 +474,9 @@ class N2FReconciliationRunner {
     $errorMessage = $errorContext = NULL;
     if (!$this->dryRun && $remotePerson->isAltered()) {
       try {
-        $actNetResult = $this->system->trySave($remotePerson);
+        $actNetResult = $remotePerson->trySave();
         if ($actNetResult->isError()) {
-          $errorMessage = $actNetResult->getStatus() . ': ' . $actNetResult->getMessage();
+          $errorMessage = $actNetResult->getStatusCode() . ': ' . $actNetResult->getMessage();
           $errorContext = $actNetResult->getContext();
         }
       }

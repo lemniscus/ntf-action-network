@@ -10,11 +10,11 @@ use Civi\Osdi\RemoteSystemInterface;
 class Reconciliation2022May001 {
 
   private RemoteSystemInterface $remoteSystem;
-  private NineToFive2022May $normalMapper;
+  private PersonN2F2022May $normalMapper;
 
   public function __construct(RemoteSystemInterface $remoteSystem) {
     $this->remoteSystem = $remoteSystem;
-    $this->normalMapper = new NineToFive2022May($remoteSystem);
+    $this->normalMapper = new PersonN2F2022May($remoteSystem);
   }
 
   public function mapLocalToRemote(LocalPerson $localPerson,
@@ -100,7 +100,7 @@ class Reconciliation2022May001 {
       $r->postalCode->set($zipForActNet);
       $r->postalCountry->set($l->addressCountryIdName->get());
 
-      if (!$streetAddressesMatch && !empty($r->postalStreet->getOriginal())) {
+      if (!$streetAddressesMatch && !empty($r->postalStreet->getAsLoaded())) {
         $messages[] = 'street address was changed';
       }
 
