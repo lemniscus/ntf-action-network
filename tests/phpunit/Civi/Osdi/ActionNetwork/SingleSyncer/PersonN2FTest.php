@@ -25,35 +25,31 @@ class PersonN2FTest extends Civi\Osdi\ActionNetwork\SingleSyncer\PersonTestAbstr
   }
 
   public static function setUpBeforeClass(): void {
-    \Civi\Osdi\Container::register('LocalObject', 'Person',
-      Civi\Osdi\LocalObject\PersonN2F::class);
+    $apiToken = \CRM_OSDI_ActionNetwork_TestUtils::defineActionNetworkApiToken();
 
-    \Civi\Osdi\Container::register('Mapper', 'Person',
-      \Civi\Osdi\ActionNetwork\Mapper\PersonN2F2022June::class);
+    $syncProfile = \Civi\Api4\OsdiSyncProfile::create(FALSE)
+      ->addValue('is_default', TRUE)
+      ->addValue('entry_point', 'https://actionnetwork.org/api/v2/')
+      ->addValue('api_token', $apiToken)
+      ->addValue('classes', [
+        'LocalObject' => ['Person' => Civi\Osdi\LocalObject\PersonN2F::class],
+        'Mapper' => ['Person' => \Civi\Osdi\ActionNetwork\Mapper\PersonN2F2022June::class],
+        'Matcher' => ['Person' => \Civi\Osdi\ActionNetwork\Matcher\Person\UniqueEmailOrFirstLastEmail::class],
+        'SingleSyncer' => ['Person' => Civi\Osdi\ActionNetwork\SingleSyncer\PersonN2F::class],
+      ])
+      ->execute()->single();
 
-    \Civi\Osdi\Container::register('Matcher', 'Person',
-      \Civi\Osdi\ActionNetwork\Matcher\Person\UniqueEmailOrFirstLastEmail::class);
+    $container = Civi\OsdiClient::containerWithDefaultSyncProfile(TRUE);
 
-    \Civi\Osdi\Container::register('SingleSyncer', 'Person',
-      Civi\Osdi\ActionNetwork\SingleSyncer\PersonN2F::class);
+    self::$remoteSystem = $container
+      ->getSingle('RemoteSystem', 'ActionNetwork');
 
-    require_once E::path('tests/phpunit/CRM/OSDI/ActionNetwork/Fixture.php');
-
-    self::$remoteSystem = \CRM_OSDI_ActionNetwork_TestUtils::createRemoteSystem();
+    self::$syncer = $container->getSingle('SingleSyncer', 'Person', self::$remoteSystem);
+    self::assertEquals(PersonN2F::class, get_class(self::$syncer));
+    self::$syncer->setSyncProfile($syncProfile);
 
     PersonMatchFixture::$personClass = ANPerson::class;
     PersonMatchFixture::$remoteSystem = self::$remoteSystem;
-
-    $syncProfile = \CRM_OSDI_ActionNetwork_TestUtils::createSyncProfile();
-    $syncProfile = \Civi\Api4\OsdiSyncProfile::update(FALSE)
-      ->addWhere('id', '=', $syncProfile['id'])
-      ->addValue(
-        'mapper',
-        \Civi\Osdi\ActionNetwork\Mapper\PersonN2F2022June::class)
-      ->execute()->single();
-
-    self::$syncer = new PersonN2F(self::$remoteSystem);
-    self::$syncer->setSyncProfile($syncProfile);
 
     self::setUpCustomConfig();
 
