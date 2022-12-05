@@ -77,7 +77,7 @@ class N2F2022JuneTest extends \PHPUnit\Framework\TestCase implements
   }
 
   public static function createMapper(\Civi\Osdi\ActionNetwork\RemoteSystem $system) {
-    return new Civi\Osdi\ActionNetwork\Mapper\PersonN2F2022June($system);
+    return new PersonN2F2022June($system);
   }
 
   public function makeBlankOsdiPerson(): \Civi\Osdi\ActionNetwork\Object\Person {
