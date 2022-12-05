@@ -3,6 +3,7 @@
 namespace Civi\Osdi\ActionNetwork\Mapper;
 
 use Civi;
+use Civi\Osdi\ActionNetwork\Mapper\PersonN2F2022June;
 use Civi\Osdi\LocalObject\PersonN2F as LocalPerson;
 use Civi\Test\HeadlessInterface;
 use Civi\Test\HookInterface;
