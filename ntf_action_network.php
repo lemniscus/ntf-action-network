@@ -7,11 +7,16 @@ use CRM_NtfActionNetwork_ExtensionUtil as E;
 
 function ntf_action_network_civicrm_geocoderFormat($geoProvider, &$values, $xml) {
   if ($geoProvider !== 'Google') {
-    exit;
+    return;
   }
 
   if ('OK' !== (string) $xml->status) {
-    throw new Exception('From Google: ' . $xml->error_message ?? '""');
+    /** @var \SimpleXMLElement $xml */
+    $msg = $xml->error_message ?: '[no message]';
+    $context = ['address' => $values, 'response' => $xml->asXML()];
+    Civi::log()->error("From Google: $msg", $context);
+    //throw new Exception("From Google: $msg");
+    return;
   }
 
   foreach ($xml->result->address_component as $component) {
