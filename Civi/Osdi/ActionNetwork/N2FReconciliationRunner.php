@@ -326,7 +326,7 @@ class N2FReconciliationRunner {
 
     $pair = $this->mapper->reconcile($localPerson, $remotePerson);
 
-    if ($message = $pair->getMessage()) {
+    if ($message = $pair->getLastResult()->getMessage()) {
       $outRow[$columnOffsets['message']] = $message;
     }
 

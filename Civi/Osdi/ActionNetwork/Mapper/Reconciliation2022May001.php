@@ -6,6 +6,7 @@ use Civi\Osdi\ActionNetwork\Object\Person as RemotePerson;
 use Civi\Osdi\LocalObject\Person\N2F as LocalPerson;
 use Civi\Osdi\LocalRemotePair;
 use Civi\Osdi\RemoteSystemInterface;
+use Civi\Osdi\Result\Generic;
 
 class Reconciliation2022May001 {
 
@@ -106,7 +107,9 @@ class Reconciliation2022May001 {
 
     }
 
-    return new LocalRemotePair($l, $r, FALSE, implode('; ', $messages));
+    $pair = new LocalRemotePair($l, $r);
+    $pair->pushResult((new Generic())->setMessage(implode('; ', $messages)));
+    return $pair;
   }
 
   private function streetAddressesMatch(LocalPerson $l, RemotePerson $r): bool {
