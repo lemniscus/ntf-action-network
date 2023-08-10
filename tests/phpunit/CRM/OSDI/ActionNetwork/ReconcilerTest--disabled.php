@@ -5,6 +5,7 @@ use Civi\Test\HeadlessInterface;
 use Civi\Test\HookInterface;
 use Civi\Test\TransactionalInterface;
 use \League\Csv\Reader;
+use OsdiClient\ActionNetwork\TestUtils;
 
 /**
  * Test \Civi\Osdi\RemoteSystemInterface
@@ -44,7 +45,7 @@ class CRM_OSDI_ActionNetwork_ReconcilerTest extends \PHPUnit\Framework\TestCase 
     require_once "$osdiClientExtDir/tests/phpunit/CRM/OSDI/ActionNetwork/TestUtils.php";
 
     self::setUpCustomConfig();
-    self::$system = CRM_OSDI_ActionNetwork_TestUtils::createRemoteSystem();
+    self::$system = TestUtils::createRemoteSystem();
     self::$mapper = self::createMapper(self::$system);
 
     \CRM_OSDI_ActionNetwork_Fixture::setUpGeocoding();

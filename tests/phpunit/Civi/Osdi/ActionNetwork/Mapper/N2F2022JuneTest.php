@@ -9,7 +9,7 @@ use Civi\Test\HeadlessInterface;
 use Civi\Test\HookInterface;
 use Civi\Test\TransactionalInterface;
 use CRM_OSDI_ActionNetwork_Fixture as Fixture;
-use CRM_OSDI_ActionNetwork_TestUtils;
+use OsdiClient\ActionNetwork\TestUtils;
 
 /**
  * @group headless
@@ -43,7 +43,7 @@ class N2F2022JuneTest extends \PHPUnit\Framework\TestCase implements
   }
 
   public static function setUpBeforeClass(): void {
-    self::$system = CRM_OSDI_ActionNetwork_TestUtils::createRemoteSystem();
+    self::$system = TestUtils::createRemoteSystem();
     self::$mapper = self::createMapper(self::$system);
     self::setUpCustomConfig();
 

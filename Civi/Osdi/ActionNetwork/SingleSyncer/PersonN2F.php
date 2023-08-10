@@ -2,7 +2,6 @@
 
 namespace Civi\Osdi\ActionNetwork\SingleSyncer;
 
-use Civi\Osdi\ActionNetwork\SingleSyncer\Person\PersonBasic;
 use Civi\Osdi\LocalObjectInterface;
 use Civi\Osdi\LocalRemotePair;
 use Civi\Osdi\RemoteObjectInterface;

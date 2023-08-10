@@ -5,7 +5,7 @@ namespace Civi\Osdi\ActionNetwork\SingleSyncer;
 use Civi;
 use Civi\Osdi\ActionNetwork\Object\Person as ANPerson;
 use CRM_NtfActionNetwork_ExtensionUtil as E;
-use CRM_OSDI_Fixture_PersonMatching as PersonMatchFixture;
+use OsdiClient\ActionNetwork\PersonMatchingFixture as PersonMatchFixture;
 
 /**
  * @group headless
@@ -25,7 +25,7 @@ class PersonN2FTest extends Civi\Osdi\ActionNetwork\SingleSyncer\PersonTestAbstr
   }
 
   public static function setUpBeforeClass(): void {
-    $apiToken = \CRM_OSDI_ActionNetwork_TestUtils::defineActionNetworkApiToken();
+    $apiToken = \OsdiClient\ActionNetwork\TestUtils::defineActionNetworkApiToken();
 
     $syncProfile = \Civi\Api4\OsdiSyncProfile::create(FALSE)
       ->addValue('is_default', TRUE)
