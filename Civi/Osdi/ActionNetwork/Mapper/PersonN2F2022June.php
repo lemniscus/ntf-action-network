@@ -10,14 +10,16 @@ use Civi\Osdi\MapperInterface;
 use Civi\Osdi\RemoteObjectInterface;
 use Civi\Osdi\RemoteSystemInterface;
 use Civi\Osdi\Result\Map as MapResult;
+use Civi\OsdiClient;
 use CRM_NtfActionNetwork_ExtensionUtil as E;
 
 class PersonN2F2022June implements MapperInterface {
 
   private RemoteSystemInterface $remoteSystem;
 
-  public function __construct(RemoteSystemInterface $remoteSystem) {
-    $this->remoteSystem = $remoteSystem;
+  public function __construct(?RemoteSystemInterface $remoteSystem = NULL) {
+    $this->remoteSystem = $remoteSystem ??
+      OsdiClient::container()->getSingle('RemoteSystem', 'ActionNetwork');
   }
 
   public function mapOneWay(LocalRemotePair $pair): MapResult {
