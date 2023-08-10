@@ -19,6 +19,7 @@ $loader->add('api_', __DIR__);
 $loader->add('api\\', __DIR__);
 $loader->add('CRM_', "$osdiClientExtDir/tests/phpunit");
 $loader->add('Civi\\', "$osdiClientExtDir/tests/phpunit");
+$loader->add('OsdiClient\\', "$osdiClientExtDir/tests/phpunit");
 
 $loader->register();
 
