@@ -66,7 +66,7 @@ class PersonN2FTest extends Civi\Osdi\ActionNetwork\SingleSyncer\PersonTestAbstr
     \CRM_Core_Config::singleton()->defaultContactCountry = 1228;
   }
 
-  public function testSyncFromLocalIfNeeded_AddedAddress_FailsDueToNoZip() {
+  public function testMatchAndSyncIfEligible_FromLocal_AddedAddress_FailsDueToNoZip() {
     self::markTestSkipped('In this custom extension, we handle missing ZIPs.');
   }
 
