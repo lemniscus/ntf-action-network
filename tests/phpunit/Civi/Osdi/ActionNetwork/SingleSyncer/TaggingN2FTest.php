@@ -75,7 +75,7 @@ class TaggingN2FTest extends \PHPUnit\Framework\TestCase implements
     }
 
     [$remotePerson, $cid] =
-      PersonMatchFixture::setUpExactlyOneMatchByEmailAndName(self::$remoteSystem);
+      PersonMatchFixture::setUpExactlyOneMatchByEmailAndName();
 
     $badTagging = new Civi\Osdi\ActionNetwork\Object\Tagging(self::$remoteSystem);
     $badTagging->setPerson($remotePerson);
