@@ -24,7 +24,7 @@
     <ext>osdi-client</ext>
   </requires>
   <compatibility>
-    <ver>5.0</ver>
+    <ver>5.69</ver>
   </compatibility>
   <comments>Custom-built for 9to5</comments>
   <classloader>
@@ -32,5 +32,6 @@
   </classloader>
   <civix>
     <namespace>CRM/NtfActionNetwork</namespace>
+    <format>23.02.1</format>
   </civix>
 </extension>
