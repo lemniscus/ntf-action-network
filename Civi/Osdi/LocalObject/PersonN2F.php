@@ -79,15 +79,9 @@ class PersonN2F extends PersonBasic {
     ];
   }
 
-  protected function saveCoreContactFields() {
-    $record = $this->getSaveableFieldContents('')
+  protected function getContactRecordForSave(): array {
+    return parent::getContactRecordForSave()
       + $this->getSaveableFieldContents('Individual', TRUE);
-    $record['contact_type'] = 'Individual';
-    $record['id'] = $this->getId();
-
-    $postSaveContactArray = Contact::save(FALSE)
-      ->addRecord($record)->execute()->first();
-    return $postSaveContactArray['id'];
   }
 
   protected function savePhone($cid): void {
