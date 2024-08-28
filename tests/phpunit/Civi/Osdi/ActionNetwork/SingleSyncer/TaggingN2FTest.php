@@ -5,6 +5,7 @@ namespace Civi\Osdi\ActionNetwork\SingleSyncer;
 use Civi;
 use Civi\Osdi\ActionNetwork\Object\Person as ANPerson;
 use OsdiClient\ActionNetwork\PersonMatchingFixture as PersonMatchFixture;
+use OsdiClient\ActionNetwork\TestUtils;
 
 /**
  * @group headless
@@ -28,30 +29,19 @@ class TaggingN2FTest extends \PHPUnit\Framework\TestCase implements
   }
 
   public static function setUpBeforeClass(): void {
-    $apiToken = \OsdiClient\ActionNetwork\TestUtils::defineActionNetworkApiToken();
-
-    $syncProfile = \Civi\Api4\OsdiSyncProfile::create(FALSE)
-      ->addValue('is_default', TRUE)
-      ->addValue('entry_point', 'https://actionnetwork.org/api/v2/')
-      ->addValue('api_token', $apiToken)
-      ->addValue('classes', [
-        'LocalObject' => ['Person' => Civi\Osdi\LocalObject\PersonN2F::class],
-        'Mapper' => ['Person' => \Civi\Osdi\ActionNetwork\Mapper\PersonN2F2022June::class],
-        'SingleSyncer' => [
-          'Person' => Civi\Osdi\ActionNetwork\SingleSyncer\PersonN2F::class,
-          'Tagging' => \Civi\Osdi\ActionNetwork\SingleSyncer\TaggingN2F::class,
-        ],
-      ])
-      ->execute()->single();
-
-    $container = Civi\OsdiClient::containerWithDefaultSyncProfile(TRUE);
+    TestUtils::createSyncProfile();
+    $container = Civi\OsdiClient::container();
+    $container->register('LocalObject', 'Person', Civi\Osdi\LocalObject\PersonN2F::class);
+    $container->register('Mapper', 'Person', \Civi\Osdi\ActionNetwork\Mapper\PersonN2F2022June::class);
+    $container->register('Matcher', 'Person', \Civi\Osdi\ActionNetwork\Matcher\Person\UniqueEmailOrFirstLastEmail::class);
+    $container->register('SingleSyncer', 'Person', Civi\Osdi\ActionNetwork\SingleSyncer\PersonN2F::class);
+    $container->register('SingleSyncer', 'Tagging', Civi\Osdi\ActionNetwork\SingleSyncer\TaggingN2F::class);
 
     self::$remoteSystem = $container
       ->getSingle('RemoteSystem', 'ActionNetwork');
 
     self::$syncer = $container->getSingle('SingleSyncer', 'Tagging', self::$remoteSystem);
     self::assertEquals(TaggingN2F::class, get_class(self::$syncer));
-    self::$syncer->setSyncProfile($syncProfile);
 
     PersonMatchFixture::$personClass = ANPerson::class;
     PersonMatchFixture::$remoteSystem = self::$remoteSystem;
@@ -65,7 +55,7 @@ class TaggingN2FTest extends \PHPUnit\Framework\TestCase implements
     $badRemoteTag->save();
 
     $goodRemoteTag = new Civi\Osdi\ActionNetwork\Object\Tag(self::$remoteSystem);
-    $goodRemoteTag->name->set('Campaign: Test');
+    $goodRemoteTag->name->set('Campaign_Test');
     $goodRemoteTag->save();
 
     foreach ([$badRemoteTag, $goodRemoteTag] as $remoteTag) {
