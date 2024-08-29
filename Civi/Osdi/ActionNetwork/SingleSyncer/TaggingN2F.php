@@ -8,7 +8,7 @@ use Civi\Osdi\Result\MapAndWrite as MapAndWriteResult;
 class TaggingN2F extends TaggingBasic {
 
   public function oneWayMapAndWrite(LocalRemotePair $pair): MapAndWriteResult {
-    $name = $pair->getOriginObject()->getTag()->loadOnce()->name->get();
+    $name = $pair->getOriginObject()->getTagUsingCache()->name->get();
     foreach (['Comms_', 'Campaign_'] as $allowedPrefix) {
       if (str_starts_with($name, $allowedPrefix)) {
         return parent::oneWayMapAndWrite($pair);
